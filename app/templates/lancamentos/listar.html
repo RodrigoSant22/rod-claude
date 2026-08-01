@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Lançamentos{% endblock %}
+
+{% block content %}
+  <h1>Lançamentos</h1>
+
+  {# hx-get atualiza só a tabela; sem HTMX o form envia por GET e recarrega a página. #}
+  <form class="filtros"
+        method="get"
+        action="{{ url_for('lancamentos.listar') }}"
+        hx-get="{{ url_for('lancamentos.listar') }}"
+        hx-target="#tabela"
+        hx-select="#tabela"
+        hx-swap="outerHTML"
+        hx-trigger="change, keyup delay:400ms from:input[name='texto']"
+        hx-push-url="true">
+    <div class="campo">
+      <label for="inicio">De</label>
+      <input type="date" id="inicio" name="inicio" value="{{ filtros.inicio or '' }}" />
+    </div>
+    <div class="campo">
+      <label for="fim">Até</label>
+      <input type="date" id="fim" name="fim" value="{{ filtros.fim or '' }}" />
+    </div>
+    <div class="campo">
+      <label for="tipo">Tipo</label>
+      <select id="tipo" name="tipo">
+        <option value="">Todos</option>
+        {% for t in tipos %}
+          <option value="{{ t.value }}" {{ 'selected' if filtros.tipo == t }}>{{ t.rotulo }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="campo">
+      <label for="categoria_id">Categoria</label>
+      <select id="categoria_id" name="categoria_id">
+        <option value="">Todas</option>
+        {% for c in categorias %}
+          <option value="{{ c.id }}" {{ 'selected' if filtros.categoria_id == c.id }}>
+            {{ c.tipo.rotulo }} · {{ c.nome }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="campo campo--cresce">
+      <label for="texto">Busca</label>
+      <input type="search" id="texto" name="texto" value="{{ filtros.texto or '' }}"
+             placeholder="descrição..." />
+    </div>
+    <div class="campo">
+      <label>&nbsp;</label>
+      <button type="submit">Filtrar</button>
+    </div>
+    <div class="campo">
+      <label>&nbsp;</label>
+      <a class="botao botao--secundario" href="{{ url_for('lancamentos.listar') }}">Limpar</a>
+    </div>
+  </form>
+
+  {% include "lancamentos/_tabela.html" %}
+{% endblock %}

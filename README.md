@@ -1,6 +1,7 @@
-# rod-claude
+# rod-claude — Fluxo de Caixa
 
-Aplicação web em Flask (Python 3.11+), organizada com *application factory* e blueprints.
+Controle de receitas e despesas em Flask (Python 3.11+): lançamentos por
+categoria, filtros, saldo do mês e evolução anual.
 
 ## Rodando localmente
 
@@ -11,7 +12,11 @@ pip install -r requirements-dev.txt
 
 cp .env.example .env               # ajuste SECRET_KEY
 
-flask --app run.py run --debug     # ou: python run.py
+export FLASK_APP=run.py            # Windows: set FLASK_APP=run.py
+flask db upgrade                   # cria o banco
+flask seed                         # categorias padrão (opcional)
+
+flask run --debug
 ```
 
 Acesse http://127.0.0.1:5000.
@@ -22,40 +27,85 @@ Acesse http://127.0.0.1:5000.
 app/
 ├── __init__.py      # create_app(): monta o app e registra os blueprints
 ├── config.py        # presets development / testing / production
-├── extensions.py    # instâncias de db e migrate (sem app, evita import circular)
-├── models.py        # modelos e mixins do SQLAlchemy
-├── routes/          # um blueprint por área da aplicação
-├── templates/       # Jinja2
+├── extensions.py    # db, migrate e csrf (sem app, evita import circular)
+├── models.py        # Categoria e Lancamento
+├── forms.py         # Flask-WTF, com campo de valor em formato brasileiro
+├── services.py      # consultas e cálculos — a lógica de dinheiro fica aqui
+├── filters.py       # formatação de moeda e data para o Jinja
+├── cli.py           # comandos init-db e seed
+├── routes/          # um blueprint por área
+├── templates/
 └── static/
-tests/               # pytest, com fixtures em conftest.py
-run.py               # ponto de entrada
+migrations/          # Alembic
+tests/               # pytest
 ```
 
 ## Comandos
 
 | Ação | Comando |
 | --- | --- |
-| Servidor de desenvolvimento | `flask --app run.py run --debug` |
+| Servidor de desenvolvimento | `flask run --debug` |
+| Criar/atualizar o banco | `flask db upgrade` |
+| Nova migração após mudar models | `flask db migrate -m "descrição"` |
+| Categorias padrão | `flask seed` |
 | Testes | `pytest` |
 | Testes com cobertura | `pytest --cov=app` |
 | Lint | `ruff check .` |
-| Corrigir lint | `ruff check --fix .` |
+
+Todos assumem `FLASK_APP=run.py` exportado.
+
+## Decisões de projeto
+
+**Dinheiro em `Numeric`, nunca `float`.** `0.1 + 0.2` em ponto flutuante dá
+`0.30000000000000004`; somado ao longo de milhares de lançamentos, o saldo não
+fecha. Os valores são `Numeric(12, 2)` no banco e `Decimal` no Python, e há
+teste garantindo isso.
+
+**O valor é sempre positivo.** Receita ou despesa vem do tipo da categoria, o
+que impede um lançamento de contradizer a própria categoria. A propriedade
+`Lancamento.valor_com_sinal` aplica o sinal quando é preciso somar.
+
+**Categoria com histórico não se exclui.** Ao tentar excluir uma categoria que
+já tem lançamentos, o sistema a desativa — apagar levaria o histórico junto.
+Categorias inativas somem do formulário mas continuam nos relatórios.
+
+**HTMX é opcional.** Os filtros e a exclusão usam HTMX para atualizar só a
+tabela, mas tudo é `<form>` HTML comum por baixo: sem JavaScript, a aplicação
+continua funcionando com recarga de página.
+
+**Cálculos fora das rotas.** `services.py` concentra as consultas, então a
+lógica de dinheiro é testável sem subir requisição HTTP.
 
 ## Banco de dados
 
-Por padrão SQLite em `instance/app.db`. Para trocar, defina `DATABASE_URL` no `.env`.
+SQLite em `instance/app.db` por padrão. Para PostgreSQL, basta o `.env`:
 
-Migrações com Flask-Migrate:
-
-```bash
-flask --app run.py db init          # só na primeira vez
-flask --app run.py db migrate -m "descrição"
-flask --app run.py db upgrade
 ```
+DATABASE_URL=postgresql://usuario:senha@localhost:5432/rod_claude
+```
+
+SQLite tem suporte limitado a `NUMERIC` — para uso real, PostgreSQL é o
+recomendado.
 
 ## Endpoints
 
 | Rota | Descrição |
 | --- | --- |
-| `GET /` | Página inicial |
+| `GET /` | Painel: saldo do mês, totais por categoria, evolução anual |
 | `GET /health` | Status da aplicação e do banco (503 se o banco estiver fora) |
+| `GET /lancamentos/` | Lista com filtros de período, tipo, categoria e busca |
+| `GET,POST /lancamentos/novo` | Novo lançamento |
+| `GET,POST /lancamentos/<id>/editar` | Edição |
+| `POST /lancamentos/<id>/excluir` | Exclusão |
+| `GET /categorias/` | Lista de categorias |
+| `GET,POST /categorias/nova` | Nova categoria |
+| `GET,POST /categorias/<id>/editar` | Edição |
+| `POST /categorias/<id>/excluir` | Exclui ou desativa, se houver histórico |
+
+## Ainda não implementado
+
+- **Autenticação** — não há login; quem acessa a aplicação vê e altera tudo.
+  Rode apenas localmente até isso existir.
+- **Estorno** — lançamentos são editáveis e excluíveis. Auditoria financeira
+  formal pediria lançamentos imutáveis com estorno por contra-lançamento.
+- Contas a pagar/receber, recorrências e exportação para CSV/Excel.

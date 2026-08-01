@@ -1,0 +1,10 @@
+{% macro campo(field, ajuda="") %}
+  <div class="campo">
+    {{ field.label }}
+    {{ field(class="invalido" if field.errors else "") }}
+    {% if ajuda %}<small class="ajuda">{{ ajuda }}</small>{% endif %}
+    {% for erro in field.errors %}
+      <small class="erro">{{ erro }}</small>
+    {% endfor %}
+  </div>
+{% endmacro %}
