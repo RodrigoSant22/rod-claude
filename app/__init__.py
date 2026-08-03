@@ -5,7 +5,7 @@ from flask import Flask
 
 from app import cli, filters
 from app.config import Config, get_config
-from app.extensions import csrf, db, migrate
+from app.extensions import csrf, db, login_manager, migrate
 
 load_dotenv()
 
@@ -24,15 +24,18 @@ def create_app(config: str | type[Config] | None = None) -> Flask:
     db.init_app(app)
     migrate.init_app(app, db)
     csrf.init_app(app)
+    login_manager.init_app(app)
 
     filters.registrar(app)
     cli.registrar(app)
 
+    from app.routes.auth import bp as auth_bp
     from app.routes.categorias import bp as categorias_bp
     from app.routes.lancamentos import bp as lancamentos_bp
     from app.routes.main import bp as main_bp
 
     app.register_blueprint(main_bp)
+    app.register_blueprint(auth_bp)
     app.register_blueprint(lancamentos_bp)
     app.register_blueprint(categorias_bp)
 

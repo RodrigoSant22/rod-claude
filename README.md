@@ -14,12 +14,17 @@ cp .env.example .env               # ajuste SECRET_KEY
 
 export FLASK_APP=run.py            # Windows: set FLASK_APP=run.py
 flask db upgrade                   # cria o banco
+flask criar-usuario                # sua conta de acesso
 flask seed                         # categorias padrão (opcional)
 
 flask run --debug
 ```
 
-Acesse http://127.0.0.1:5000.
+Acesse http://127.0.0.1:5000 e entre com o e-mail e a senha que você definiu.
+
+> **Atualizando de uma versão sem login?** Rode `flask db upgrade` e depois
+> `flask criar-usuario`. Seus lançamentos e categorias existentes são
+> atribuídos automaticamente à primeira conta criada — nada se perde.
 
 ## Estrutura
 
@@ -28,7 +33,7 @@ app/
 ├── __init__.py      # create_app(): monta o app e registra os blueprints
 ├── config.py        # presets development / testing / production
 ├── extensions.py    # db, migrate e csrf (sem app, evita import circular)
-├── models.py        # Categoria e Lancamento
+├── models.py        # Usuario, Categoria e Lancamento
 ├── forms.py         # Flask-WTF, com campo de valor em formato brasileiro
 ├── services.py      # consultas e cálculos — a lógica de dinheiro fica aqui
 ├── filters.py       # formatação de moeda e data para o Jinja
@@ -47,7 +52,8 @@ tests/               # pytest
 | Servidor de desenvolvimento | `flask run --debug` |
 | Criar/atualizar o banco | `flask db upgrade` |
 | Nova migração após mudar models | `flask db migrate -m "descrição"` |
-| Categorias padrão | `flask seed` |
+| Criar conta de acesso | `flask criar-usuario` |
+| Categorias padrão | `flask seed` (ou `--email`, se houver mais de uma conta) |
 | Testes | `pytest` |
 | Testes com cobertura | `pytest --cov=app` |
 | Lint | `ruff check .` |
@@ -82,6 +88,16 @@ revisar os atributos `hx-*` dos templates.
 **Cálculos fora das rotas.** `services.py` concentra as consultas, então a
 lógica de dinheiro é testável sem subir requisição HTTP.
 
+**Isolamento por conta feito num lugar só.** Toda função de `services.py`
+recebe `usuario_id` e filtra por ele, em vez de cada rota lembrar de filtrar.
+Buscas por id (editar, excluir) usam `filter_by(id=..., usuario_id=...)` e
+respondem **404** — não 403 — para registro de outra conta: um 403
+confirmaria que aquele id existe.
+
+**Não há cadastro pela web.** Contas são criadas com `flask criar-usuario`.
+Num sistema financeiro, formulário aberto de registro é porta de entrada sem
+necessidade. A senha é guardada como hash `scrypt` (padrão do Werkzeug).
+
 ## Banco de dados
 
 SQLite em `instance/app.db` por padrão. Para PostgreSQL, basta o `.env`:
@@ -95,8 +111,13 @@ recomendado.
 
 ## Endpoints
 
+Tudo exige login, exceto `/login` e `/health`.
+
 | Rota | Descrição |
 | --- | --- |
+| `GET,POST /login` | Entrada |
+| `POST /logout` | Saída |
+| `GET,POST /conta/senha` | Alterar a própria senha |
 | `GET /` | Painel: saldo do mês, totais por categoria, evolução anual |
 | `GET /health` | Status da aplicação e do banco (503 se o banco estiver fora) |
 | `GET /lancamentos/` | Lista com filtros de período, tipo, categoria e busca |
@@ -110,8 +131,14 @@ recomendado.
 
 ## Ainda não implementado
 
-- **Autenticação** — não há login; quem acessa a aplicação vê e altera tudo.
-  Rode apenas localmente até isso existir.
+- **Limite de tentativas de login** — não há bloqueio após N erros. Numa
+  aplicação exposta à internet, isso permitiria ataque de força bruta.
+- **Recuperação de senha** — sem e-mail cadastrado para envio; a saída é
+  criar outra conta pela linha de comando.
 - **Estorno** — lançamentos são editáveis e excluíveis. Auditoria financeira
   formal pediria lançamentos imutáveis com estorno por contra-lançamento.
 - Contas a pagar/receber, recorrências e exportação para CSV/Excel.
+
+Antes de expor a aplicação na internet: defina um `SECRET_KEY` próprio, use
+`FLASK_ENV=production` (que exige HTTPS nos cookies) e resolva o limite de
+tentativas acima.

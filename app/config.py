@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -11,6 +12,14 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
+    # O cookie de sessão guarda o login: fora do alcance de JavaScript e
+    # não enviado em requisições vindas de outro site.
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    REMEMBER_COOKIE_HTTPONLY = True
+    REMEMBER_COOKIE_SAMESITE = "Lax"
+    REMEMBER_COOKIE_DURATION = timedelta(days=14)
+
 
 class DevelopmentConfig(Config):
     DEBUG = True
@@ -21,9 +30,15 @@ class TestingConfig(Config):
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     WTF_CSRF_ENABLED = False
 
+    # Hash barato só nos testes: o scrypt padrão levava a suíte de 1s a 20s.
+    # Nunca usar isto fora daqui.
+    PASSWORD_HASH_METHOD = "pbkdf2:sha256:1"
+
 
 class ProductionConfig(Config):
-    pass
+    # Exige HTTPS para transmitir os cookies de sessão.
+    SESSION_COOKIE_SECURE = True
+    REMEMBER_COOKIE_SECURE = True
 
 
 configs = {

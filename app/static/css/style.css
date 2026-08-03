@@ -53,6 +53,18 @@ nav a:hover { color: var(--fg); }
 
 main { margin: 0 auto; max-width: 68rem; padding: 1.5rem; }
 
+.conta {
+  align-items: center;
+  border-left: 1px solid var(--border);
+  display: flex;
+  gap: 0.6rem;
+  padding-left: 1rem;
+}
+.conta a { color: var(--fg); }
+
+.centralizado { margin: 2rem auto; max-width: 22rem; }
+.centralizado .formulario { max-width: none; }
+
 footer {
   border-top: 1px solid var(--border);
   padding: 1rem 1.5rem;

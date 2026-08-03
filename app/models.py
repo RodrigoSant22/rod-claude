@@ -2,6 +2,10 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from enum import StrEnum
 
+from flask import current_app
+from flask_login import UserMixin
+from werkzeug.security import check_password_hash, generate_password_hash
+
 from app.extensions import db
 
 
@@ -18,6 +22,47 @@ class TimestampMixin:
     )
 
 
+class Usuario(TimestampMixin, UserMixin, db.Model):
+    __tablename__ = "usuarios"
+
+    id = db.Column(db.Integer, primary_key=True)
+    nome = db.Column(db.String(120), nullable=False)
+    email = db.Column(db.String(180), nullable=False, unique=True, index=True)
+    senha_hash = db.Column(db.String(255), nullable=False)
+    ativo = db.Column(db.Boolean, nullable=False, default=True)
+
+    categorias = db.relationship("Categoria", back_populates="usuario")
+    lancamentos = db.relationship("Lancamento", back_populates="usuario")
+
+    def __repr__(self) -> str:
+        return f"<Usuario {self.email}>"
+
+    def definir_senha(self, senha: str) -> None:
+        """Guarda só o hash — nunca a senha.
+
+        O algoritmo vem da config para os testes poderem usar um barato: o
+        scrypt padrão é lento de propósito e domina o tempo da suíte.
+        """
+        metodo = current_app.config.get("PASSWORD_HASH_METHOD") if current_app else None
+        self.senha_hash = (
+            generate_password_hash(senha, method=metodo)
+            if metodo
+            else generate_password_hash(senha)
+        )
+
+    def conferir_senha(self, senha: str) -> bool:
+        return check_password_hash(self.senha_hash, senha)
+
+    @property
+    def is_active(self) -> bool:
+        """Flask-Login recusa o login de quem estiver desativado."""
+        return self.ativo
+
+    @staticmethod
+    def normalizar_email(email: str) -> str:
+        return email.strip().lower()
+
+
 class TipoLancamento(StrEnum):
     RECEITA = "receita"
     DESPESA = "despesa"
@@ -29,7 +74,10 @@ class TipoLancamento(StrEnum):
 
 class Categoria(TimestampMixin, db.Model):
     __tablename__ = "categorias"
-    __table_args__ = (db.UniqueConstraint("nome", "tipo", name="uq_categoria_nome_tipo"),)
+    # O nome só precisa ser único dentro da conta de cada usuário.
+    __table_args__ = (
+        db.UniqueConstraint("usuario_id", "nome", "tipo", name="uq_categoria_nome_tipo"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(60), nullable=False)
@@ -38,6 +86,11 @@ class Categoria(TimestampMixin, db.Model):
     # Categoria não se exclui quando já tem histórico: desativa-se, para não
     # quebrar os lançamentos antigos que apontam para ela.
     ativa = db.Column(db.Boolean, nullable=False, default=True)
+
+    # Nullable no banco só para permitir a migração de dados já existentes;
+    # a aplicação sempre preenche. Ver `flask criar-usuario`.
+    usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True, index=True)
+    usuario = db.relationship("Usuario", back_populates="categorias")
 
     lancamentos = db.relationship("Lancamento", back_populates="categoria")
 
@@ -67,6 +120,10 @@ class Lancamento(TimestampMixin, db.Model):
 
     categoria_id = db.Column(db.Integer, db.ForeignKey("categorias.id"), nullable=False)
     categoria = db.relationship("Categoria", back_populates="lancamentos")
+
+    # Ver a nota em Categoria.usuario_id sobre o nullable.
+    usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True, index=True)
+    usuario = db.relationship("Usuario", back_populates="lancamentos")
 
     def __repr__(self) -> str:
         return f"<Lancamento {self.descricao} {self.valor}>"

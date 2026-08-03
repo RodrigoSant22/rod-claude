@@ -1,5 +1,7 @@
 from flask import Blueprint, flash, redirect, render_template, url_for
+from flask_login import current_user, login_required
 
+from app import services
 from app.extensions import db
 from app.forms import CategoriaForm
 from app.models import Categoria
@@ -7,10 +9,24 @@ from app.models import Categoria
 bp = Blueprint("categorias", __name__, url_prefix="/categorias")
 
 
+@bp.before_request
+@login_required
+def exigir_login():
+    """Protege todas as rotas do blueprint, sem repetir o decorator em cada uma."""
+
+
+def _minha_categoria(categoria_id: int) -> Categoria:
+    """404 para categoria de outra conta — ver a nota em lancamentos._meu_lancamento."""
+    return db.one_or_404(
+        db.select(Categoria).filter_by(id=categoria_id, usuario_id=current_user.id)
+    )
+
+
 @bp.get("/")
 def listar():
-    categorias = Categoria.query.order_by(Categoria.tipo, Categoria.nome).all()
-    return render_template("categorias/listar.html", categorias=categorias)
+    return render_template(
+        "categorias/listar.html", categorias=services.categorias_do_usuario(current_user.id)
+    )
 
 
 @bp.route("/nova", methods=["GET", "POST"])
@@ -22,7 +38,12 @@ def criar():
             flash("Já existe uma categoria com esse nome e tipo.", "erro")
         else:
             db.session.add(
-                Categoria(nome=form.nome.data, tipo=form.tipo.data, ativa=form.ativa.data)
+                Categoria(
+                    nome=form.nome.data,
+                    tipo=form.tipo.data,
+                    ativa=form.ativa.data,
+                    usuario_id=current_user.id,
+                )
             )
             db.session.commit()
             flash("Categoria criada.", "sucesso")
@@ -33,7 +54,7 @@ def criar():
 
 @bp.route("/<int:categoria_id>/editar", methods=["GET", "POST"])
 def editar(categoria_id: int):
-    categoria = db.get_or_404(Categoria, categoria_id)
+    categoria = _minha_categoria(categoria_id)
     form = CategoriaForm(obj=categoria)
 
     if form.validate_on_submit():
@@ -50,7 +71,7 @@ def editar(categoria_id: int):
 
 @bp.post("/<int:categoria_id>/excluir")
 def excluir(categoria_id: int):
-    categoria = db.get_or_404(Categoria, categoria_id)
+    categoria = _minha_categoria(categoria_id)
 
     # Excluir apagaria o histórico junto. Categoria em uso só é desativada.
     if categoria.em_uso:
@@ -66,7 +87,12 @@ def excluir(categoria_id: int):
 
 
 def _ja_existe(nome: str, tipo: str, exceto: int | None = None) -> bool:
-    query = Categoria.query.filter(Categoria.nome.ilike(nome), Categoria.tipo == tipo)
+    """Duplicidade é checada dentro da conta: nomes iguais entre usuários são normais."""
+    query = Categoria.query.filter(
+        Categoria.nome.ilike(nome),
+        Categoria.tipo == tipo,
+        Categoria.usuario_id == current_user.id,
+    )
     if exceto:
         query = query.filter(Categoria.id != exceto)
     return db.session.query(query.exists()).scalar()

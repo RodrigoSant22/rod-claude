@@ -2,6 +2,9 @@
 
 Isolar isso das rotas mantém as views curtas e deixa a lógica de dinheiro
 testável sem precisar de requisição HTTP.
+
+Toda função recebe `usuario_id` e filtra por ele: o isolamento entre contas
+é feito aqui, num lugar só, em vez de espalhado pelas rotas.
 """
 
 from dataclasses import dataclass
@@ -41,11 +44,21 @@ def _aplica_periodo(query, inicio: date | None, fim: date | None):
     return query
 
 
-def calcular_resumo(inicio: date | None = None, fim: date | None = None) -> Resumo:
+def categorias_do_usuario(usuario_id: int, apenas_ativas: bool = False) -> list[Categoria]:
+    query = Categoria.query.filter_by(usuario_id=usuario_id)
+    if apenas_ativas:
+        query = query.filter_by(ativa=True)
+    return query.order_by(Categoria.tipo, Categoria.nome).all()
+
+
+def calcular_resumo(
+    usuario_id: int, inicio: date | None = None, fim: date | None = None
+) -> Resumo:
     """Soma receitas e despesas do período. Ausência de lançamentos vira 0,00."""
     query = (
         db.session.query(Categoria.tipo, func.coalesce(func.sum(Lancamento.valor), 0))
         .join(Lancamento, Lancamento.categoria_id == Categoria.id)
+        .filter(Lancamento.usuario_id == usuario_id)
         .group_by(Categoria.tipo)
     )
     totais = {tipo: Decimal(str(total)) for tipo, total in _aplica_periodo(query, inicio, fim)}
@@ -57,13 +70,16 @@ def calcular_resumo(inicio: date | None = None, fim: date | None = None) -> Resu
 
 
 def totais_por_categoria(
-    tipo: TipoLancamento, inicio: date | None = None, fim: date | None = None
+    usuario_id: int,
+    tipo: TipoLancamento,
+    inicio: date | None = None,
+    fim: date | None = None,
 ) -> list[TotalCategoria]:
     """Totais agrupados por categoria, do maior para o menor."""
     query = (
         db.session.query(Categoria.nome, func.sum(Lancamento.valor).label("total"))
         .join(Lancamento, Lancamento.categoria_id == Categoria.id)
-        .filter(Categoria.tipo == tipo)
+        .filter(Categoria.tipo == tipo, Lancamento.usuario_id == usuario_id)
         .group_by(Categoria.nome)
         .order_by(func.sum(Lancamento.valor).desc())
     )
@@ -82,6 +98,7 @@ def totais_por_categoria(
 
 
 def buscar_lancamentos(
+    usuario_id: int,
     inicio: date | None = None,
     fim: date | None = None,
     tipo: TipoLancamento | None = None,
@@ -89,7 +106,7 @@ def buscar_lancamentos(
     texto: str | None = None,
 ) -> list[Lancamento]:
     """Lista lançamentos aplicando os filtros informados, mais recentes primeiro."""
-    query = Lancamento.query.join(Categoria)
+    query = Lancamento.query.join(Categoria).filter(Lancamento.usuario_id == usuario_id)
 
     query = _aplica_periodo(query, inicio, fim)
     if tipo:
@@ -102,7 +119,7 @@ def buscar_lancamentos(
     return query.order_by(Lancamento.data.desc(), Lancamento.id.desc()).all()
 
 
-def evolucao_mensal(ano: int) -> list[dict]:
+def evolucao_mensal(usuario_id: int, ano: int) -> list[dict]:
     """Receitas, despesas e saldo mês a mês, para o gráfico do painel."""
     query = (
         db.session.query(
@@ -111,7 +128,10 @@ def evolucao_mensal(ano: int) -> list[dict]:
             func.sum(Lancamento.valor),
         )
         .join(Categoria, Lancamento.categoria_id == Categoria.id)
-        .filter(func.strftime("%Y", Lancamento.data) == str(ano))
+        .filter(
+            func.strftime("%Y", Lancamento.data) == str(ano),
+            Lancamento.usuario_id == usuario_id,
+        )
         .group_by("mes", Categoria.tipo)
     )
 

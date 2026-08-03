@@ -86,15 +86,20 @@ def test_banco_rejeita_valor_zero_ou_negativo(db, categorias):
     db.session.rollback()
 
 
-def test_categoria_nao_repete_nome_no_mesmo_tipo(db, categorias):
-    db.session.add(Categoria(nome="Moradia", tipo=TipoLancamento.DESPESA))
+def test_categoria_nao_repete_nome_no_mesmo_tipo(db, usuario, categorias):
+    """A unicidade é por conta: mesmo dono, mesmo nome, mesmo tipo colide."""
+    db.session.add(
+        Categoria(nome="Moradia", tipo=TipoLancamento.DESPESA, usuario_id=usuario.id)
+    )
     with pytest.raises(IntegrityError):
         db.session.commit()
     db.session.rollback()
 
 
-def test_mesmo_nome_em_tipos_diferentes_e_permitido(db, categorias):
-    db.session.add(Categoria(nome="Moradia", tipo=TipoLancamento.RECEITA))
+def test_mesmo_nome_em_tipos_diferentes_e_permitido(db, usuario, categorias):
+    db.session.add(
+        Categoria(nome="Moradia", tipo=TipoLancamento.RECEITA, usuario_id=usuario.id)
+    )
     db.session.commit()
     assert Categoria.query.filter_by(nome="Moradia").count() == 2
 

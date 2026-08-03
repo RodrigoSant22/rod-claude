@@ -5,12 +5,15 @@ from wtforms import (
     BooleanField,
     DateField,
     DecimalField,
+    PasswordField,
     SelectField,
     StringField,
     TextAreaField,
 )
 from wtforms.validators import (
     DataRequired,
+    Email,
+    EqualTo,
     InputRequired,
     Length,
     NumberRange,
@@ -18,6 +21,34 @@ from wtforms.validators import (
 )
 
 from app.models import TipoLancamento
+
+SENHA_MINIMA = 8
+
+
+class LoginForm(FlaskForm):
+    email = StringField(
+        "E-mail", validators=[DataRequired("Informe o e-mail."), Email("E-mail inválido.")]
+    )
+    senha = PasswordField("Senha", validators=[DataRequired("Informe a senha.")])
+    lembrar = BooleanField("Manter conectado")
+
+
+class AlterarSenhaForm(FlaskForm):
+    senha_atual = PasswordField("Senha atual", validators=[DataRequired("Informe a senha atual.")])
+    nova_senha = PasswordField(
+        "Nova senha",
+        validators=[
+            DataRequired("Informe a nova senha."),
+            Length(min=SENHA_MINIMA, message=f"Use ao menos {SENHA_MINIMA} caracteres."),
+        ],
+    )
+    confirmacao = PasswordField(
+        "Confirme a nova senha",
+        validators=[
+            DataRequired("Repita a nova senha."),
+            EqualTo("nova_senha", message="As senhas não conferem."),
+        ],
+    )
 
 
 class ValorBRLField(DecimalField):

@@ -1,6 +1,7 @@
 from datetime import date
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask_login import current_user, login_required
 
 from app import services
 from app.extensions import db
@@ -8,6 +9,12 @@ from app.forms import LancamentoForm
 from app.models import Categoria, Lancamento, TipoLancamento
 
 bp = Blueprint("lancamentos", __name__, url_prefix="/lancamentos")
+
+
+@bp.before_request
+@login_required
+def exigir_login():
+    """Protege todas as rotas do blueprint, sem repetir o decorator em cada uma."""
 
 
 def _data(nome: str) -> date | None:
@@ -38,19 +45,27 @@ def _filtros() -> dict:
     }
 
 
-def _categorias_ativas() -> list[Categoria]:
-    return (
-        Categoria.query.filter_by(ativa=True).order_by(Categoria.tipo, Categoria.nome).all()
+def _meu_lancamento(lancamento_id: int) -> Lancamento:
+    """404 para lançamento de outra conta — nunca 403.
+
+    Responder 403 confirmaria que aquele id existe; 404 não revela nada.
+    """
+    return db.one_or_404(
+        db.select(Lancamento).filter_by(id=lancamento_id, usuario_id=current_user.id)
     )
+
+
+def _minhas_categorias_ativas() -> list[Categoria]:
+    return services.categorias_do_usuario(current_user.id, apenas_ativas=True)
 
 
 @bp.get("/")
 def listar():
     filtros = _filtros()
     contexto = {
-        "lancamentos": services.buscar_lancamentos(**filtros),
-        "resumo": services.calcular_resumo(filtros["inicio"], filtros["fim"]),
-        "categorias": _categorias_ativas(),
+        "lancamentos": services.buscar_lancamentos(current_user.id, **filtros),
+        "resumo": services.calcular_resumo(current_user.id, filtros["inicio"], filtros["fim"]),
+        "categorias": _minhas_categorias_ativas(),
         "filtros": filtros,
         "tipos": list(TipoLancamento),
     }
@@ -64,21 +79,24 @@ def listar():
 @bp.route("/novo", methods=["GET", "POST"])
 def criar():
     form = LancamentoForm(data={"data": date.today()})
-    form.carregar_categorias(_categorias_ativas())
+    categorias = _minhas_categorias_ativas()
+    form.carregar_categorias(categorias)
 
     if not form.categoria_id.choices:
         flash("Cadastre ao menos uma categoria antes de lançar.", "aviso")
         return redirect(url_for("categorias.criar"))
 
     if form.validate_on_submit():
-        lancamento = Lancamento(
-            descricao=form.descricao.data,
-            valor=form.valor.data,
-            data=form.data.data,
-            categoria_id=form.categoria_id.data,
-            observacao=form.observacao.data or None,
+        db.session.add(
+            Lancamento(
+                descricao=form.descricao.data,
+                valor=form.valor.data,
+                data=form.data.data,
+                categoria_id=form.categoria_id.data,
+                observacao=form.observacao.data or None,
+                usuario_id=current_user.id,
+            )
         )
-        db.session.add(lancamento)
         db.session.commit()
         flash("Lançamento registrado.", "sucesso")
         return redirect(url_for("lancamentos.listar"))
@@ -88,9 +106,9 @@ def criar():
 
 @bp.route("/<int:lancamento_id>/editar", methods=["GET", "POST"])
 def editar(lancamento_id: int):
-    lancamento = db.get_or_404(Lancamento, lancamento_id)
+    lancamento = _meu_lancamento(lancamento_id)
     form = LancamentoForm(obj=lancamento)
-    form.carregar_categorias(_categorias_ativas())
+    form.carregar_categorias(_minhas_categorias_ativas())
 
     if form.validate_on_submit():
         form.populate_obj(lancamento)
@@ -103,7 +121,7 @@ def editar(lancamento_id: int):
 
 @bp.post("/<int:lancamento_id>/excluir")
 def excluir(lancamento_id: int):
-    lancamento = db.get_or_404(Lancamento, lancamento_id)
+    lancamento = _meu_lancamento(lancamento_id)
     db.session.delete(lancamento)
     db.session.commit()
 
@@ -111,8 +129,10 @@ def excluir(lancamento_id: int):
         filtros = _filtros()
         return render_template(
             "lancamentos/_tabela.html",
-            lancamentos=services.buscar_lancamentos(**filtros),
-            resumo=services.calcular_resumo(filtros["inicio"], filtros["fim"]),
+            lancamentos=services.buscar_lancamentos(current_user.id, **filtros),
+            resumo=services.calcular_resumo(
+                current_user.id, filtros["inicio"], filtros["fim"]
+            ),
             filtros=filtros,
         )
 

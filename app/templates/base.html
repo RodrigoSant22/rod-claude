@@ -12,12 +12,23 @@
   <body>
     <header>
       <a class="marca" href="{{ url_for('main.index') }}">Fluxo de Caixa</a>
-      <nav>
-        <a href="{{ url_for('main.index') }}">Painel</a>
-        <a href="{{ url_for('lancamentos.listar') }}">Lançamentos</a>
-        <a href="{{ url_for('categorias.listar') }}">Categorias</a>
-        <a class="botao" href="{{ url_for('lancamentos.criar') }}">+ Novo</a>
-      </nav>
+
+      {% if current_user.is_authenticated %}
+        <nav>
+          <a href="{{ url_for('main.index') }}">Painel</a>
+          <a href="{{ url_for('lancamentos.listar') }}">Lançamentos</a>
+          <a href="{{ url_for('categorias.listar') }}">Categorias</a>
+          <a class="botao" href="{{ url_for('lancamentos.criar') }}">+ Novo</a>
+
+          <span class="conta">
+            <a href="{{ url_for('auth.alterar_senha') }}">{{ current_user.nome }}</a>
+            <form method="post" action="{{ url_for('auth.logout') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <button type="submit" class="ligacao">sair</button>
+            </form>
+          </span>
+        </nav>
+      {% endif %}
     </header>
 
     <main>
