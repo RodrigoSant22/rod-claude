@@ -127,6 +127,24 @@ confirmaria que aquele id existe.
 Num sistema financeiro, formulário aberto de registro é porta de entrada sem
 necessidade. A senha é guardada como hash `scrypt` (padrão do Werkzeug).
 
+**Freio de força bruta contado no banco.** A tabela `tentativas_acesso`
+registra cada falha, com duas contagens em paralelo: por conta (5 erros em
+15 min) e por IP (20 no mesmo período). O limite por IP é mais alto de
+propósito — ele existe para conter varredura de vários e-mails, não para
+atrapalhar quem divide a mesma rede. As tentativas contam o e-mail
+*digitado*, exista ele ou não: contar só contas reais deixaria a enumeração
+de endereços livre. Acertar a senha zera o contador da conta.
+
+**Link de redefinição sem tabela de tokens.** O token é assinado com o
+`SECRET_KEY` e embute uma impressão do hash da senha atual. Isso o torna de
+uso único sem guardar estado: trocada a senha, o hash muda e qualquer link
+antigo — inclusive um que tenha vazado — deixa de valer. A validade é de 1
+hora.
+
+**Sem SMTP, o link vai para o log.** É o que torna a recuperação de senha
+utilizável numa instalação local: o link aparece no terminal do `flask run`.
+Configure `MAIL_SERVER` e companhia no `.env` para enviar de verdade.
+
 ## Banco de dados
 
 SQLite em `instance/app.db` por padrão. Para PostgreSQL, basta o `.env`:
@@ -146,6 +164,8 @@ Tudo exige login, exceto `/login` e `/health`.
 | --- | --- |
 | `GET,POST /login` | Entrada |
 | `POST /logout` | Saída |
+| `GET,POST /senha/esqueci` | Pedir link de redefinição |
+| `GET,POST /senha/redefinir/<token>` | Escolher nova senha pelo link |
 | `GET,POST /conta/senha` | Alterar a própria senha |
 | `GET /` | Painel: saldo do mês, totais por categoria, evolução anual |
 | `GET /health` | Status da aplicação e do banco (503 se o banco estiver fora) |
@@ -158,16 +178,29 @@ Tudo exige login, exceto `/login` e `/health`.
 | `GET,POST /categorias/<id>/editar` | Edição |
 | `POST /categorias/<id>/excluir` | Exclui ou desativa, se houver histórico |
 
+## Manutenção
+
+A tabela `tentativas_acesso` cresce com o uso. Para descartar o que já
+passou da validade:
+
+```bash
+flask limpar-tentativas            # remove o que tem mais de 30 dias
+flask limpar-tentativas --dias 7
+```
+
 ## Ainda não implementado
 
-- **Limite de tentativas de login** — não há bloqueio após N erros. Numa
-  aplicação exposta à internet, isso permitiria ataque de força bruta.
-- **Recuperação de senha** — sem e-mail cadastrado para envio; a saída é
-  criar outra conta pela linha de comando.
 - **Estorno** — lançamentos são editáveis e excluíveis. Auditoria financeira
   formal pediria lançamentos imutáveis com estorno por contra-lançamento.
 - Contas a pagar/receber, recorrências e exportação para CSV/Excel.
 
-Antes de expor a aplicação na internet: defina um `SECRET_KEY` próprio, use
-`FLASK_ENV=production` (que exige HTTPS nos cookies) e resolva o limite de
-tentativas acima.
+Antes de expor a aplicação na internet:
+
+- defina um `SECRET_KEY` próprio (ele assina as sessões *e* os links de
+  redefinição de senha);
+- use `FLASK_ENV=production`, que exige HTTPS nos cookies;
+- configure SMTP, senão a recuperação de senha só funciona para quem tem
+  acesso ao log do servidor;
+- se houver proxy reverso na frente, configure o `ProxyFix` do Werkzeug —
+  sem isso o `remote_addr` é o do proxy, e o limite por IP passa a valer
+  para todos os visitantes somados.

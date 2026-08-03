@@ -90,6 +90,15 @@ def registrar(app: Flask) -> None:
             if adotados:
                 click.echo(f"{adotados} registro(s) sem dono atribuído(s) a esta conta.")
 
+    @app.cli.command("limpar-tentativas")
+    @click.option("--dias", default=30, show_default=True, help="Idade a partir da qual descartar.")
+    def limpar_tentativas(dias: int):
+        """Descarta registros antigos de tentativas de acesso."""
+        from app import seguranca
+
+        removidas = seguranca.limpar_antigas(dias)
+        click.echo(f"{removidas} registro(s) removido(s).")
+
     @app.cli.command("seed")
     @click.option("--email", default=None, help="Conta que receberá as categorias.")
     def seed(email: str | None):

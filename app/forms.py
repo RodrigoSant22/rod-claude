@@ -33,6 +33,29 @@ class LoginForm(FlaskForm):
     lembrar = BooleanField("Manter conectado")
 
 
+class EsqueciSenhaForm(FlaskForm):
+    email = StringField(
+        "E-mail", validators=[DataRequired("Informe o e-mail."), Email("E-mail inválido.")]
+    )
+
+
+class RedefinirSenhaForm(FlaskForm):
+    nova_senha = PasswordField(
+        "Nova senha",
+        validators=[
+            DataRequired("Informe a nova senha."),
+            Length(min=SENHA_MINIMA, message=f"Use ao menos {SENHA_MINIMA} caracteres."),
+        ],
+    )
+    confirmacao = PasswordField(
+        "Confirme a nova senha",
+        validators=[
+            DataRequired("Repita a nova senha."),
+            EqualTo("nova_senha", message="As senhas não conferem."),
+        ],
+    )
+
+
 class AlterarSenhaForm(FlaskForm):
     senha_atual = PasswordField("Senha atual", validators=[DataRequired("Informe a senha atual.")])
     nova_senha = PasswordField(

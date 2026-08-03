@@ -63,6 +63,26 @@ class Usuario(TimestampMixin, UserMixin, db.Model):
         return email.strip().lower()
 
 
+class TentativaAcesso(db.Model):
+    """Registro de tentativas de login e de pedidos de redefinição.
+
+    Serve para limitar força bruta. Guarda o e-mail *tentado*, exista ele ou
+    não — contar só contas reais deixaria a varredura por e-mails livre.
+    """
+
+    __tablename__ = "tentativas_acesso"
+
+    id = db.Column(db.Integer, primary_key=True)
+    acao = db.Column(db.String(20), nullable=False)  # "login" ou "reset"
+    identificador = db.Column(db.String(180), nullable=False, index=True)
+    ip = db.Column(db.String(45), nullable=True, index=True)  # 45 cabe IPv6
+    sucesso = db.Column(db.Boolean, nullable=False, default=False)
+    criado_em = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+    def __repr__(self) -> str:
+        return f"<TentativaAcesso {self.acao} {self.identificador} sucesso={self.sucesso}>"
+
+
 class TipoLancamento(StrEnum):
     RECEITA = "receita"
     DESPESA = "despesa"

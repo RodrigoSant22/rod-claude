@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% from "_macros.html" import campo %}
+{% block title %}Nova senha{% endblock %}
+
+{% block content %}
+  <div class="centralizado">
+    <h1>Escolher nova senha</h1>
+
+    <form method="post" class="formulario">
+      {{ form.hidden_tag() }}
+      {{ campo(form.nova_senha, ajuda="Ao menos 8 caracteres.") }}
+      {{ campo(form.confirmacao) }}
+
+      <div class="acoes-form">
+        <button type="submit">Salvar</button>
+      </div>
+    </form>
+  </div>
+{% endblock %}

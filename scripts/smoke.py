@@ -37,6 +37,8 @@ RAIZ = Path(__file__).resolve().parent.parent
 
 CONTA = ("smoke-um@exemplo.com", "senha-de-fumaca-1")
 CONTA2 = ("smoke-dois@exemplo.com", "senha-de-fumaca-2")
+# Conta separada para o teste de redefinição, que troca a senha.
+CONTA3 = ("smoke-tres@exemplo.com", "senha-de-fumaca-3")
 
 
 # --------------------------------------------------------------------------
@@ -150,11 +152,14 @@ def flask(ambiente: dict, *args: str) -> None:
         raise RuntimeError(f"flask {' '.join(args)} falhou:\n{resultado.stderr}")
 
 
-def esperar_servidor(base: str, processo: subprocess.Popen, limite: float = 30.0) -> None:
+def esperar_servidor(
+    base: str, processo: subprocess.Popen, log: Path, limite: float = 30.0
+) -> None:
     inicio = time.monotonic()
     while time.monotonic() - inicio < limite:
         if processo.poll() is not None:
-            raise RuntimeError(f"servidor morreu ao subir:\n{processo.stdout.read()}")
+            saida = log.read_text() if log.exists() else "(sem log)"
+            raise RuntimeError(f"servidor morreu ao subir:\n{saida}")
         try:
             Sessao(base).get("/health")
             return
@@ -164,7 +169,7 @@ def esperar_servidor(base: str, processo: subprocess.Popen, limite: float = 30.0
 
 
 def preparar():
-    """Sobe um servidor com banco temporário. Devolve (base, encerrar)."""
+    """Sobe um servidor com banco temporário. Devolve (base, log, encerrar)."""
     pasta = Path(tempfile.mkdtemp(prefix="smoke-"))
     porta = porta_livre()
     base = f"http://127.0.0.1:{porta}"
@@ -179,17 +184,20 @@ def preparar():
 
     print(f"preparando banco temporário em {pasta}")
     flask(ambiente, "db", "upgrade")
-    for email, senha in (CONTA, CONTA2):
+    for email, senha in (CONTA, CONTA2, CONTA3):
         flask(ambiente, "criar-usuario", "--email", email, "--nome", email.split("@")[0],
               "--senha", senha)
     flask(ambiente, "seed", "--email", CONTA[0])
 
+    # Sem SMTP configurado, o link de redefinição vai para o log do servidor.
+    # Gravando num arquivo, o script consegue lê-lo e seguir o fluxo inteiro.
+    log = pasta / "servidor.log"
     print(f"subindo servidor em {base}")
     processo = subprocess.Popen(
         [sys.executable, "-m", "flask", "run", "--port", str(porta)],
         cwd=RAIZ,
         env=ambiente,
-        stdout=subprocess.PIPE,
+        stdout=log.open("w"),
         stderr=subprocess.STDOUT,
         text=True,
     )
@@ -203,12 +211,12 @@ def preparar():
         shutil.rmtree(pasta, ignore_errors=True)
 
     try:
-        esperar_servidor(base, processo)
+        esperar_servidor(base, processo, log)
     except Exception:
         encerrar()
         raise
 
-    return base, encerrar
+    return base, log, encerrar
 
 
 # --------------------------------------------------------------------------
@@ -216,7 +224,12 @@ def preparar():
 # --------------------------------------------------------------------------
 
 
-def verificar(base: str, conta: tuple[str, str], conta2: tuple[str, str] | None) -> None:
+def verificar(
+    base: str,
+    conta: tuple[str, str],
+    conta2: tuple[str, str] | None,
+    log: Path | None = None,
+) -> None:
     email, senha = conta
 
     secao("acesso sem login")
@@ -303,6 +316,66 @@ def verificar(base: str, conta: tuple[str, str], conta2: tuple[str, str] | None)
     codigo, destino = sessao.redirecionamento("/lancamentos/")
     checa("sessão é encerrada", codigo == 302 and "/login" in (destino or ""))
 
+    secao("limite de tentativas")
+    # E-mail inventado: assim o freio é exercitado sem travar as contas reais.
+    alvo = "forca-bruta@exemplo.com"
+    bruta = Sessao(base)
+    for _ in range(5):
+        _, html = bruta.get("/login")
+        _, html = bruta.post("/login", {"email": alvo, "senha": "chute"}, token_de(html))
+    checa("erros abaixo do limite só recusam", "E-mail ou senha incorretos" in html)
+
+    _, html = bruta.get("/login")
+    _, html = bruta.post("/login", {"email": alvo, "senha": "chute"}, token_de(html))
+    checa("bloqueia depois do limite", "Muitas tentativas" in html)
+
+    outra_conta = Sessao(base)
+    html = outra_conta.entrar(email, senha)
+    checa("bloqueio não afeta outra conta", "Painel" in html)
+
+    if log is not None:
+        secao("recuperação de senha")
+        email3, _ = CONTA3
+        nova = "senha-redefinida-pelo-smoke"
+
+        reset = Sessao(base)
+        _, html = reset.get("/senha/esqueci")
+        _, html = reset.post("/senha/esqueci", {"email": email3}, token_de(html))
+        checa("pedido é aceito", "enviamos as instruções" in html)
+
+        _, html = reset.get("/senha/esqueci")
+        _, html = reset.post(
+            "/senha/esqueci", {"email": "ninguem@exemplo.com"}, token_de(html)
+        )
+        checa("e-mail inexistente dá a mesma resposta", "enviamos as instruções" in html)
+
+        achado = re.search(r"(/senha/redefinir/[\w\-\.]+)", log.read_text())
+        checa("link chega ao log quando não há SMTP", achado is not None)
+        if achado:
+            caminho = achado.group(1)
+            codigo, _ = reset.get(caminho)
+            checa("link abre o formulário", codigo == 200)
+
+            _, html = reset.get(caminho)
+            reset.post(
+                caminho,
+                {"nova_senha": nova, "confirmacao": nova},
+                token_de(html),
+            )
+
+            depois = Sessao(base)
+            html = depois.entrar(email3, nova)
+            checa("senha nova funciona", "Painel" in html)
+
+            _, html = reset.get(caminho)
+            if "Link inválido" in html:
+                checa("link é de uso único", True)
+            else:
+                _, html = reset.post(
+                    caminho, {"nova_senha": nova, "confirmacao": nova}, token_de(html)
+                )
+                checa("link é de uso único", "Link inválido" in html)
+
 
 # --------------------------------------------------------------------------
 
@@ -320,18 +393,20 @@ def main() -> int:
         parser.error("--url exige --email e --senha")
 
     encerrar = None
+    log = None
     if args.url:
         base = args.url
         conta = (args.email, args.senha)
         conta2 = (args.email2, args.senha2) if args.email2 and args.senha2 else None
         if not conta2:
             print("aviso: sem --email2, o isolamento entre contas não será verificado")
+        print("aviso: contra servidor externo, a recuperação de senha não é verificada")
     else:
-        base, encerrar = preparar()
+        base, log, encerrar = preparar()
         conta, conta2 = CONTA, CONTA2
 
     try:
-        verificar(base, conta, conta2)
+        verificar(base, conta, conta2, log)
     finally:
         if encerrar:
             encerrar()

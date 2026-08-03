@@ -3,11 +3,26 @@ from urllib.parse import urlparse
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
+from app import mailer, seguranca, tokens
 from app.extensions import db
-from app.forms import AlterarSenhaForm, LoginForm
+from app.forms import (
+    AlterarSenhaForm,
+    EsqueciSenhaForm,
+    LoginForm,
+    RedefinirSenhaForm,
+)
 from app.models import Usuario
 
 bp = Blueprint("auth", __name__)
+
+# Mesma resposta para e-mail inexistente, senha errada e conta desativada:
+# distinguir os casos revelaria quais endereços têm conta.
+CREDENCIAIS_INVALIDAS = "E-mail ou senha incorretos."
+
+# Idem no "esqueci a senha": a mensagem não confirma se o e-mail existe.
+RESET_SOLICITADO = (
+    "Se houver uma conta com esse e-mail, enviamos as instruções para redefinir a senha."
+)
 
 
 def _destino_seguro(destino: str | None) -> str:
@@ -26,6 +41,11 @@ def _destino_seguro(destino: str | None) -> str:
     return destino
 
 
+def _mensagem_bloqueio(minutos: int) -> str:
+    unidade = "minuto" if minutos == 1 else "minutos"
+    return f"Muitas tentativas. Tente novamente em {minutos} {unidade}."
+
+
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
@@ -33,18 +53,22 @@ def login():
 
     form = LoginForm()
     if form.validate_on_submit():
-        usuario = Usuario.query.filter_by(
-            email=Usuario.normalizar_email(form.email.data)
-        ).first()
+        email = Usuario.normalizar_email(form.email.data)
 
-        # Mensagem única para e-mail inexistente, senha errada e conta
-        # desativada: revelar qual dos três facilitaria descobrir e-mails
-        # válidos.
+        bloqueio = seguranca.verificar(seguranca.LOGIN, email)
+        if bloqueio:
+            flash(_mensagem_bloqueio(bloqueio.minutos_restantes), "erro")
+            return render_template("auth/login.html", form=form)
+
+        usuario = Usuario.query.filter_by(email=email).first()
+
         if usuario and usuario.ativo and usuario.conferir_senha(form.senha.data):
+            seguranca.limpar_apos_sucesso(seguranca.LOGIN, email)
             login_user(usuario, remember=form.lembrar.data)
             return redirect(_destino_seguro(request.args.get("next")))
 
-        flash("E-mail ou senha incorretos.", "erro")
+        seguranca.registrar(seguranca.LOGIN, email, sucesso=False)
+        flash(CREDENCIAIS_INVALIDAS, "erro")
 
     return render_template("auth/login.html", form=form)
 
@@ -55,6 +79,67 @@ def logout():
     logout_user()
     flash("Sessão encerrada.", "sucesso")
     return redirect(url_for("auth.login"))
+
+
+@bp.route("/senha/esqueci", methods=["GET", "POST"])
+def esqueci_senha():
+    if current_user.is_authenticated:
+        return redirect(url_for("auth.alterar_senha"))
+
+    form = EsqueciSenhaForm()
+    if form.validate_on_submit():
+        email = Usuario.normalizar_email(form.email.data)
+
+        bloqueio = seguranca.verificar(seguranca.RESET, email)
+        if bloqueio:
+            flash(_mensagem_bloqueio(bloqueio.minutos_restantes), "erro")
+            return render_template("auth/esqueci_senha.html", form=form)
+
+        # Registrada antes de saber se a conta existe: o limite precisa valer
+        # igual para e-mails inexistentes, senão vira sonda de enumeração.
+        seguranca.registrar(seguranca.RESET, email, sucesso=False)
+
+        usuario = Usuario.query.filter_by(email=email).first()
+        if usuario and usuario.ativo:
+            link = url_for(
+                "auth.redefinir_senha", token=tokens.gerar(usuario), _external=True
+            )
+            mailer.enviar(
+                usuario.email,
+                "Redefinição de senha — Fluxo de Caixa",
+                "Você pediu para redefinir sua senha.\n\n"
+                f"Acesse o link abaixo para escolher uma nova:\n{link}\n\n"
+                "O link vale por 1 hora e só pode ser usado uma vez.\n"
+                "Se não foi você, ignore esta mensagem: nada muda.\n",
+            )
+
+        flash(RESET_SOLICITADO, "sucesso")
+        return redirect(url_for("auth.login"))
+
+    return render_template("auth/esqueci_senha.html", form=form)
+
+
+@bp.route("/senha/redefinir/<token>", methods=["GET", "POST"])
+def redefinir_senha(token: str):
+    usuario = tokens.validar(token)
+    if usuario is None:
+        flash("Link inválido ou expirado. Peça um novo.", "erro")
+        return redirect(url_for("auth.esqueci_senha"))
+
+    form = RedefinirSenhaForm()
+    if form.validate_on_submit():
+        usuario.definir_senha(form.nova_senha.data)
+        db.session.commit()
+
+        # Trocar a senha destrava a conta: quem provou o e-mail não deve
+        # ficar preso ao bloqueio causado por quem errou a senha antes.
+        seguranca.limpar_apos_sucesso(seguranca.LOGIN, usuario.email)
+        seguranca.limpar_apos_sucesso(seguranca.RESET, usuario.email)
+
+        flash("Senha redefinida. Faça login com a nova senha.", "sucesso")
+        return redirect(url_for("auth.login"))
+
+    return render_template("auth/redefinir_senha.html", form=form)
 
 
 @bp.route("/conta/senha", methods=["GET", "POST"])
