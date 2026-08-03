@@ -56,9 +56,38 @@ tests/               # pytest
 | Categorias padrão | `flask seed` (ou `--email`, se houver mais de uma conta) |
 | Testes | `pytest` |
 | Testes com cobertura | `pytest --cov=app` |
+| Teste de fumaça | `python scripts/smoke.py` |
 | Lint | `ruff check .` |
 
 Todos assumem `FLASK_APP=run.py` exportado.
+
+## As três camadas de verificação
+
+| | O que responde | Executa o código? |
+| --- | --- | --- |
+| `ruff check .` | O código está bem escrito? | Não, só lê |
+| `pytest` | A lógica está correta? | Sim, em pedaços isolados |
+| `python scripts/smoke.py` | O sistema funciona de verdade? | Sim, servidor real por HTTP |
+
+O smoke existe por um motivo específico: para ganhar velocidade, o
+`TestingConfig` **desliga o CSRF** e troca o hash de senha por um barato.
+Cada `= False` ali é um pedaço do sistema que o pytest deixa de exercitar.
+O smoke sobe o servidor com a configuração de desenvolvimento, sem nada
+desligado, e conversa com ele por HTTP como um navegador faria.
+
+Ele já pegou uma regressão real: com valor `0,00`, o formulário respondia
+"informe o valor" em vez de "deve ser maior que zero" — porque
+`Decimal("0.00")` é falsy e o `DataRequired` disparava antes do
+`NumberRange`. O pytest passava, já que a lista de erros não estava vazia.
+
+Sem argumentos, o script prepara um banco temporário, cria duas contas,
+sobe o servidor numa porta livre, roda as verificações e limpa tudo no fim.
+Para apontá-lo a um servidor que já está no ar:
+
+```bash
+python scripts/smoke.py --url http://127.0.0.1:5000 \
+    --email eu@exemplo.com --senha minha-senha
+```
 
 ## Decisões de projeto
 
