@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% block title %}Fluxo de Caixa{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
-    {# HTMX é opcional: sem ele a aplicação continua funcionando por forms normais. #}
-    <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
+    {# HTMX 2.0.10, servido localmente: sem rede externa e sem depender de CDN.
+       É opcional — sem ele a aplicação continua funcionando por forms normais. #}
+    <script src="{{ url_for('static', filename='js/htmx.min.js') }}" defer></script>
   </head>
   <body>
     <header>

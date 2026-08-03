@@ -69,9 +69,15 @@ que impede um lançamento de contradizer a própria categoria. A propriedade
 já tem lançamentos, o sistema a desativa — apagar levaria o histórico junto.
 Categorias inativas somem do formulário mas continuam nos relatórios.
 
-**HTMX é opcional.** Os filtros e a exclusão usam HTMX para atualizar só a
-tabela, mas tudo é `<form>` HTML comum por baixo: sem JavaScript, a aplicação
-continua funcionando com recarga de página.
+**HTMX é opcional e local.** Os filtros e a exclusão usam HTMX para atualizar
+só a tabela, mas tudo é `<form>` HTML comum por baixo: sem JavaScript, a
+aplicação continua funcionando com recarga de página. O script está
+vendorizado em `app/static/js/htmx.min.js` (versão 2.0.10, estável), então não
+há dependência de CDN nem de rede externa.
+
+Para atualizar a versão, baixe de https://htmx.org/docs/#installing e
+substitua o arquivo. A linha 4.x está em beta e usa outra API — não troque sem
+revisar os atributos `hx-*` dos templates.
 
 **Cálculos fora das rotas.** `services.py` concentra as consultas, então a
 lógica de dinheiro é testável sem subir requisição HTTP.

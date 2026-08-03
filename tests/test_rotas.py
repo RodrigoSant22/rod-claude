@@ -10,6 +10,17 @@ def test_health(client):
     assert resp.get_json() == {"status": "ok", "database": "ok"}
 
 
+def test_htmx_e_servido_localmente(client):
+    """O script é vendorizado: nada de CDN, e o caminho tem que existir."""
+    corpo = client.get("/").get_data(as_text=True)
+    assert "/static/js/htmx.min.js" in corpo
+    assert "unpkg.com" not in corpo
+
+    resp = client.get("/static/js/htmx.min.js")
+    assert resp.status_code == 200
+    assert len(resp.get_data()) > 40_000
+
+
 def test_painel_abre_sem_dados(client):
     resp = client.get("/")
 
