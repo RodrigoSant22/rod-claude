@@ -19,6 +19,13 @@
   </section>
 
   {% if lancamentos %}
+    <p class="exportar">
+      Exportar {{ lancamentos|length }} lançamento{{ 's' if lancamentos|length != 1 }}:
+      <a href="{{ url_xlsx }}" download>Excel</a> ·
+      <a href="{{ url_csv }}" download>CSV</a>
+      <small class="sutil">respeita os filtros acima</small>
+    </p>
+
     <table>
       <thead>
         <tr>

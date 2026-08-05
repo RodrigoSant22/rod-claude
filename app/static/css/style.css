@@ -164,6 +164,12 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 
 tr.inativa { opacity: 0.5; }
 
+.exportar {
+  font-size: 0.9rem;
+  margin: 0 0 0.75rem;
+}
+.exportar small { margin-left: 0.4rem; }
+
 .acoes { white-space: nowrap; }
 .acoes form { display: inline; }
 .acoes a, .acoes button { font-size: 0.85rem; margin-right: 0.5rem; }

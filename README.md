@@ -36,6 +36,10 @@ app/
 ├── models.py        # Usuario, Categoria e Lancamento
 ├── forms.py         # Flask-WTF, com campo de valor em formato brasileiro
 ├── services.py      # consultas e cálculos — a lógica de dinheiro fica aqui
+├── exportacao.py    # geração de CSV e XLSX
+├── seguranca.py     # freio de força bruta
+├── tokens.py        # links assinados de redefinição de senha
+├── mailer.py        # envio por SMTP, com queda para o log
 ├── filters.py       # formatação de moeda e data para o Jinja
 ├── cli.py           # comandos init-db e seed
 ├── routes/          # um blueprint por área
@@ -141,6 +145,21 @@ uso único sem guardar estado: trocada a senha, o hash muda e qualquer link
 antigo — inclusive um que tenha vazado — deixa de valer. A validade é de 1
 hora.
 
+**CSV feito para o Excel em português.** Separador `;` e UTF-8 com BOM.
+Com vírgula, o duplo clique no Brasil joga tudo numa coluna só; sem o BOM,
+os acentos chegam quebrados. Os valores usam vírgula decimal, senão o Excel
+os trata como texto e não soma.
+
+**O valor exportado sai com sinal** — negativo para despesa. Uma coluna
+numérica só permite `SOMA()` direto e funciona em tabela dinâmica; duas
+colunas separadas obrigariam a subtrair uma da outra a cada análise. A
+coluna `Tipo` continua lá para filtrar.
+
+**O XLSX grava tipos, não texto.** Datas como data e valores como número,
+com formato de moeda aplicado — do contrário a planilha não somaria nem
+ordenaria corretamente. Vem com cabeçalho congelado, filtro ligado e uma
+aba `Resumo` com totais e quebra por categoria.
+
 **Sem SMTP, o link vai para o log.** É o que torna a recuperação de senha
 utilizável numa instalação local: o link aparece no terminal do `flask run`.
 Configure `MAIL_SERVER` e companhia no `.env` para enviar de verdade.
@@ -170,6 +189,8 @@ Tudo exige login, exceto `/login` e `/health`.
 | `GET /` | Painel: saldo do mês, totais por categoria, evolução anual |
 | `GET /health` | Status da aplicação e do banco (503 se o banco estiver fora) |
 | `GET /lancamentos/` | Lista com filtros de período, tipo, categoria e busca |
+| `GET /lancamentos/exportar.csv` | Exporta em CSV, com os mesmos filtros |
+| `GET /lancamentos/exportar.xlsx` | Exporta em Excel, com os mesmos filtros |
 | `GET,POST /lancamentos/novo` | Novo lançamento |
 | `GET,POST /lancamentos/<id>/editar` | Edição |
 | `POST /lancamentos/<id>/excluir` | Exclusão |
@@ -192,7 +213,9 @@ flask limpar-tentativas --dias 7
 
 - **Estorno** — lançamentos são editáveis e excluíveis. Auditoria financeira
   formal pediria lançamentos imutáveis com estorno por contra-lançamento.
-- Contas a pagar/receber, recorrências e exportação para CSV/Excel.
+- Contas a pagar/receber e recorrências.
+- A exportação monta o arquivo inteiro em memória. Para dezenas de milhares
+  de lançamentos, valeria trocar por escrita em fluxo.
 
 Antes de expor a aplicação na internet:
 

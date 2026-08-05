@@ -76,7 +76,13 @@ class Sessao:
 
     def get(self, caminho: str) -> tuple[int, str]:
         with self.opener.open(self.base + caminho) as r:
-            return r.status, r.read().decode()
+            # utf-8-sig descarta o BOM do CSV, que atrapalharia as buscas.
+            return r.status, r.read().decode("utf-8-sig")
+
+    def bytes(self, caminho: str) -> bytes:
+        """Conteúdo cru — para binários como o xlsx."""
+        with self.opener.open(self.base + caminho) as r:
+            return r.read()
 
     def post(self, caminho: str, dados: dict, token: str | None = None) -> tuple[int, str]:
         if token:
@@ -293,6 +299,18 @@ def verificar(
 
     _, html = sessao.get("/")
     checa("painel soma o lançamento", "R$ 1.850,45" in html)
+
+    secao("exportação")
+    codigo, corpo_csv = sessao.get("/lancamentos/exportar.csv")
+    checa("CSV é gerado", codigo == 200)
+    checa("CSV traz o lançamento", "Aluguel do smoke" in corpo_csv)
+    checa("CSV usa ponto e vírgula", corpo_csv.count(";") >= 5)
+
+    bruto = sessao.bytes("/lancamentos/exportar.xlsx")
+    checa("XLSX é gerado", bruto[:2] == b"PK", f"→ {len(bruto)} bytes")
+
+    _, filtrado = sessao.get("/lancamentos/exportar.csv?texto=coisa-que-nao-existe")
+    checa("exportação respeita o filtro", "Aluguel do smoke" not in filtrado)
 
     secao("proteção CSRF")
     codigo = sessao.post_cru(

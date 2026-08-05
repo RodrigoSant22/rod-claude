@@ -1,14 +1,31 @@
 from datetime import date
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    Response,
+    abort,
+    flash,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from flask_login import current_user, login_required
 
-from app import services
+from app import exportacao, services
 from app.extensions import db
 from app.forms import LancamentoForm
 from app.models import Categoria, Lancamento, TipoLancamento
 
 bp = Blueprint("lancamentos", __name__, url_prefix="/lancamentos")
+
+_EXPORTADORES = {
+    "csv": (exportacao.gerar_csv, "text/csv; charset=utf-8"),
+    "xlsx": (
+        exportacao.gerar_xlsx,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ),
+}
 
 
 @bp.before_request
@@ -55,6 +72,24 @@ def _meu_lancamento(lancamento_id: int) -> Lancamento:
     )
 
 
+def _links_exportacao(filtros: dict) -> dict[str, str]:
+    """URLs de exportação carregando os filtros ativos.
+
+    Ficam no fragmento da tabela, e não na página: como o HTMX troca só o
+    fragmento ao filtrar, links montados fora dele guardariam os filtros
+    antigos.
+    """
+    argumentos = {
+        chave: (valor.isoformat() if hasattr(valor, "isoformat") else valor)
+        for chave, valor in filtros.items()
+        if valor is not None
+    }
+    return {
+        f"url_{formato}": url_for("lancamentos.exportar", formato=formato, **argumentos)
+        for formato in _EXPORTADORES
+    }
+
+
 def _minhas_categorias_ativas() -> list[Categoria]:
     return services.categorias_do_usuario(current_user.id, apenas_ativas=True)
 
@@ -68,6 +103,7 @@ def listar():
         "categorias": _minhas_categorias_ativas(),
         "filtros": filtros,
         "tipos": list(TipoLancamento),
+        **_links_exportacao(filtros),
     }
 
     # HTMX pede só a tabela; o navegador sem JS recebe a página inteira.
@@ -119,6 +155,28 @@ def editar(lancamento_id: int):
     return render_template("lancamentos/form.html", form=form, lancamento=lancamento)
 
 
+@bp.get("/exportar.<formato>")
+def exportar(formato: str):
+    """Exporta o resultado dos mesmos filtros da listagem."""
+    if formato not in _EXPORTADORES:
+        abort(404)
+
+    gerar, tipo_mime = _EXPORTADORES[formato]
+    filtros = _filtros()
+    conteudo = gerar(services.buscar_lancamentos(current_user.id, **filtros))
+
+    return Response(
+        conteudo,
+        mimetype=tipo_mime,
+        headers={
+            "Content-Disposition": (
+                "attachment; filename="
+                + exportacao.nome_arquivo(formato, filtros["inicio"], filtros["fim"])
+            )
+        },
+    )
+
+
 @bp.post("/<int:lancamento_id>/excluir")
 def excluir(lancamento_id: int):
     lancamento = _meu_lancamento(lancamento_id)
@@ -134,6 +192,7 @@ def excluir(lancamento_id: int):
                 current_user.id, filtros["inicio"], filtros["fim"]
             ),
             filtros=filtros,
+            **_links_exportacao(filtros),
         )
 
     flash("Lançamento excluído.", "sucesso")
