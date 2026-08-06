@@ -8,6 +8,7 @@ from tests.conftest import SENHA
 
 
 def errar(client, email: str, vezes: int = 1):
+    """Tenta entrar com senha errada N vezes. Devolve a última resposta."""
     for _ in range(vezes):
         resposta = client.post(
             "/login", data={"email": email, "senha": "chute"}, follow_redirects=True

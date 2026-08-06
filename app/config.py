@@ -1,11 +1,26 @@
+"""Presets de configuração da aplicação.
+
+O Flask lê estas classes com `app.config.from_object`, que copia apenas os
+atributos em MAIÚSCULAS. Herdar de `Config` dá os valores comuns de graça;
+cada ambiente sobrescreve só o que muda.
+"""
+
 import os
 from datetime import timedelta
 from pathlib import Path
 
+# Raiz do repositório — usada para montar o caminho padrão do SQLite.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class Config:
+    """Base comum a todos os ambientes.
+
+    Os valores sensíveis vêm de variáveis de ambiente, com padrão só para
+    facilitar o primeiro uso — o `SECRET_KEY` embutido não serve para
+    produção.
+    """
+
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-inseguro-troque-em-producao")
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "DATABASE_URL", f"sqlite:///{BASE_DIR / 'instance' / 'app.db'}"
@@ -45,10 +60,19 @@ class Config:
 
 
 class DevelopmentConfig(Config):
+    """Uso local: recarregamento automático e páginas de erro detalhadas."""
+
     DEBUG = True
 
 
 class TestingConfig(Config):
+    """Suíte de testes: banco em memória, CSRF desligado, hash barato.
+
+    Cada ajuste aqui é um pedaço do sistema que o pytest deixa de exercitar.
+    É por isso que `scripts/smoke.py` existe: ele sobe o servidor com a
+    configuração de desenvolvimento, sem nada desligado.
+    """
+
     TESTING = True
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     WTF_CSRF_ENABLED = False
@@ -59,11 +83,14 @@ class TestingConfig(Config):
 
 
 class ProductionConfig(Config):
+    """Servindo pra valer, atrás de HTTPS."""
+
     # Exige HTTPS para transmitir os cookies de sessão.
     SESSION_COOKIE_SECURE = True
     REMEMBER_COOKIE_SECURE = True
 
 
+# Nomes aceitos por `get_config` e pela variável FLASK_ENV.
 configs = {
     "development": DevelopmentConfig,
     "testing": TestingConfig,
@@ -72,6 +99,10 @@ configs = {
 
 
 def get_config(name: str | None = None) -> type[Config]:
-    """Resolve a classe de configuração pelo nome ou pela variável FLASK_ENV."""
+    """Resolve a classe de configuração pelo nome ou pela variável FLASK_ENV.
+
+    Nome desconhecido cai em `DevelopmentConfig`, o preset mais conservador
+    para uso local.
+    """
     name = name or os.environ.get("FLASK_ENV", "development")
     return configs.get(name, DevelopmentConfig)

@@ -1,3 +1,5 @@
+"""Login, logout e as proteções em volta deles."""
+
 from app import create_app
 from app.models import Usuario
 from tests.conftest import SENHA

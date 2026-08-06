@@ -1,3 +1,5 @@
+"""Consultas e cálculos do fluxo de caixa."""
+
 from datetime import date
 from decimal import Decimal
 

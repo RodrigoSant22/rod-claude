@@ -1,3 +1,9 @@
+"""Fixtures compartilhadas pela suíte.
+
+Cada teste recebe um app novo com SQLite em memória, criado e destruído em
+milissegundos — nenhum teste enxerga o resíduo do anterior.
+"""
+
 from datetime import date
 from decimal import Decimal
 
@@ -13,6 +19,11 @@ SENHA = "senha-de-teste"
 
 @pytest.fixture
 def app():
+    """App de teste com banco em memória, descartado ao fim de cada teste.
+
+    O `yield` dentro do `with` entrega o app ao teste e retoma depois para
+    limpar — mesmo mecanismo de um gerenciador de contexto.
+    """
     app = create_app(TestingConfig)
     with app.app_context():
         _db.create_all()
@@ -29,10 +40,12 @@ def client(app):
 
 @pytest.fixture
 def db(app):
+    """A sessão do SQLAlchemy, já dentro do contexto do app de teste."""
     return _db
 
 
 def _criar_usuario(db, nome: str, email: str) -> Usuario:
+    """Cria uma conta com a senha padrão da suíte."""
     usuario = Usuario(nome=nome, email=email)
     usuario.definir_senha(SENHA)
     db.session.add(usuario)
@@ -42,6 +55,7 @@ def _criar_usuario(db, nome: str, email: str) -> Usuario:
 
 @pytest.fixture
 def usuario(db):
+    """Conta principal dos testes."""
     return _criar_usuario(db, "Rodrigo", "rodrigo@exemplo.com")
 
 
@@ -52,6 +66,7 @@ def outro_usuario(db):
 
 
 def _logar(client, email: str) -> None:
+    """Faz login no cliente, deixando o cookie de sessão pronto."""
     resposta = client.post(
         "/login", data={"email": email, "senha": SENHA}, follow_redirects=True
     )
@@ -60,6 +75,7 @@ def _logar(client, email: str) -> None:
 
 @pytest.fixture
 def logado(app, usuario):
+    """Cliente já autenticado como a conta principal."""
     cliente = app.test_client()
     _logar(cliente, usuario.email)
     return cliente
@@ -67,6 +83,7 @@ def logado(app, usuario):
 
 @pytest.fixture
 def logado_outro(app, outro_usuario):
+    """Cliente autenticado como a segunda conta."""
     cliente = app.test_client()
     _logar(cliente, outro_usuario.email)
     return cliente
@@ -74,6 +91,7 @@ def logado_outro(app, outro_usuario):
 
 @pytest.fixture
 def categorias(db, usuario):
+    """Três categorias da conta principal, por nome."""
     salario = Categoria(nome="Salário", tipo=TipoLancamento.RECEITA, usuario_id=usuario.id)
     moradia = Categoria(nome="Moradia", tipo=TipoLancamento.DESPESA, usuario_id=usuario.id)
     lazer = Categoria(nome="Lazer", tipo=TipoLancamento.DESPESA, usuario_id=usuario.id)
@@ -84,6 +102,7 @@ def categorias(db, usuario):
 
 @pytest.fixture
 def lancamentos(db, usuario, categorias):
+    """Quatro lançamentos em março e abril de 2026, da conta principal."""
     itens = [
         Lancamento(
             descricao="Salário de março",

@@ -1,3 +1,9 @@
+"""CRUD de categorias.
+
+Categoria com histórico nunca é apagada — apenas desativada, para não levar
+os lançamentos junto.
+"""
+
 from flask import Blueprint, flash, redirect, render_template, url_for
 from flask_login import current_user, login_required
 
@@ -24,6 +30,7 @@ def _minha_categoria(categoria_id: int) -> Categoria:
 
 @bp.get("/")
 def listar():
+    """Lista as categorias da conta, ativas e inativas."""
     return render_template(
         "categorias/listar.html", categorias=services.categorias_do_usuario(current_user.id)
     )
@@ -31,6 +38,7 @@ def listar():
 
 @bp.route("/nova", methods=["GET", "POST"])
 def criar():
+    """Formulário de nova categoria, e sua gravação."""
     form = CategoriaForm()
 
     if form.validate_on_submit():
@@ -54,6 +62,7 @@ def criar():
 
 @bp.route("/<int:categoria_id>/editar", methods=["GET", "POST"])
 def editar(categoria_id: int):
+    """Edição de uma categoria da própria conta."""
     categoria = _minha_categoria(categoria_id)
     form = CategoriaForm(obj=categoria)
 
@@ -71,6 +80,7 @@ def editar(categoria_id: int):
 
 @bp.post("/<int:categoria_id>/excluir")
 def excluir(categoria_id: int):
+    """Exclui a categoria, ou apenas a desativa se já houver lançamentos."""
     categoria = _minha_categoria(categoria_id)
 
     # Excluir apagaria o histórico junto. Categoria em uso só é desativada.

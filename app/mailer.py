@@ -13,7 +13,12 @@ from flask import current_app
 
 
 def enviar(destino: str, assunto: str, corpo: str) -> bool:
-    """Devolve True se saiu por SMTP, False se caiu no log."""
+    """Envia a mensagem, ou registra no log se não houver SMTP configurado.
+
+    Devolve True se saiu por SMTP, False caso contrário. Nunca levanta
+    exceção: falha de envio não pode derrubar o pedido nem denunciar, pela
+    diferença de resposta, que aquele e-mail existe.
+    """
     servidor = current_app.config.get("MAIL_SERVER")
 
     if not servidor:

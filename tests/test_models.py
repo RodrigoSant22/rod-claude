@@ -1,3 +1,5 @@
+"""Modelos: precisão decimal, regras de negócio e restrições do banco."""
+
 from datetime import date
 from decimal import Decimal
 

@@ -32,6 +32,11 @@ FORMATO_DATA = "DD/MM/YYYY"
 
 
 def _linhas(lancamentos: list[Lancamento]) -> list[tuple]:
+    """Converte os lançamentos em tuplas na ordem do CABECALHO.
+
+    Fonte única para os dois formatos: CSV e XLSX consomem daqui, então uma
+    coluna nova entra num lugar só.
+    """
     return [
         (
             item.data,
@@ -64,6 +69,10 @@ def nome_arquivo(extensao: str, inicio: date | None, fim: date | None) -> str:
 
 
 def gerar_csv(lancamentos: list[Lancamento]) -> bytes:
+    """Monta o CSV em memória e devolve os bytes prontos para a resposta.
+
+    Devolve bytes, e não str, porque o BOM é uma sequência de bytes.
+    """
     buffer = io.StringIO()
     escritor = csv.writer(buffer, delimiter=";", lineterminator="\r\n")
 
@@ -95,6 +104,7 @@ _CABECALHO_FONTE = Font(color="FFFFFF", bold=True)
 
 
 def _escrever_cabecalho(planilha, colunas: list[str]) -> None:
+    """Escreve a primeira linha e aplica o estilo de cabeçalho."""
     planilha.append(colunas)
     for coluna in range(1, len(colunas) + 1):
         celula = planilha.cell(row=1, column=coluna)
@@ -105,6 +115,11 @@ def _escrever_cabecalho(planilha, colunas: list[str]) -> None:
 
 
 def _aba_lancamentos(planilha, lancamentos: list[Lancamento]) -> None:
+    """Monta a aba principal, com uma linha por lançamento.
+
+    Datas e valores são gravados como data e número, não como texto — do
+    contrário a planilha não somaria nem ordenaria corretamente.
+    """
     planilha.title = "Lançamentos"
     _escrever_cabecalho(planilha, CABECALHO)
 
@@ -126,6 +141,11 @@ def _aba_lancamentos(planilha, lancamentos: list[Lancamento]) -> None:
 
 
 def _aba_resumo(planilha, lancamentos: list[Lancamento]) -> None:
+    """Monta a aba de totais: receitas, despesas, saldo e quebra por categoria.
+
+    Os números são calculados aqui em Python, e não com fórmulas do Excel:
+    fórmula quebraria se alguém filtrasse ou reordenasse a aba principal.
+    """
     planilha.title = "Resumo"
 
     receitas = sum(
@@ -174,6 +194,7 @@ def _aba_resumo(planilha, lancamentos: list[Lancamento]) -> None:
 
 
 def gerar_xlsx(lancamentos: list[Lancamento]) -> bytes:
+    """Monta a planilha em memória e devolve os bytes do arquivo .xlsx."""
     livro = Workbook()
     _aba_lancamentos(livro.active, lancamentos)
     _aba_resumo(livro.create_sheet(), lancamentos)

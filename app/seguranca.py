@@ -33,10 +33,13 @@ _POLITICAS = {
 
 @dataclass(frozen=True)
 class Bloqueio:
+    """Veredito do freio, com a espera restante quando há bloqueio."""
+
     bloqueado: bool
     minutos_restantes: int = 0
 
     def __bool__(self) -> bool:
+        """Permite escrever `if bloqueio:` em vez de `if bloqueio.bloqueado:`."""
         return self.bloqueado
 
 
@@ -50,6 +53,7 @@ def ip_do_pedido() -> str | None:
 
 
 def registrar(acao: str, identificador: str, sucesso: bool) -> None:
+    """Grava uma tentativa. Só as falhas contam para o limite."""
     db.session.add(
         TentativaAcesso(
             acao=acao,
@@ -70,6 +74,11 @@ def limpar_apos_sucesso(acao: str, identificador: str) -> None:
 
 
 def _falhas_desde(acao: str, desde, **filtros) -> int:
+    """Conta as falhas na janela, filtrando por conta ou por IP.
+
+    Os `**filtros` viram condições via `getattr`, o que evita duplicar a
+    função para cada campo.
+    """
     return TentativaAcesso.query.filter(
         TentativaAcesso.acao == acao,
         TentativaAcesso.sucesso.is_(False),

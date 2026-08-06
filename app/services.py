@@ -21,22 +21,36 @@ ZERO = Decimal("0.00")
 
 @dataclass(frozen=True)
 class Resumo:
+    """Totais de um período.
+
+    Imutável, e com o saldo derivado em vez de armazenado — não há como as
+    três partes divergirem entre si.
+    """
+
     receitas: Decimal
     despesas: Decimal
 
     @property
     def saldo(self) -> Decimal:
+        """Receitas menos despesas."""
         return self.receitas - self.despesas
 
 
 @dataclass(frozen=True)
 class TotalCategoria:
+    """Total de uma categoria e sua fatia percentual no período."""
+
     categoria: str
     total: Decimal
     percentual: Decimal
 
 
 def _aplica_periodo(query, inicio: date | None, fim: date | None):
+    """Acrescenta os limites de data à query, ignorando os que vierem vazios.
+
+    Queries do SQLAlchemy são imutáveis: cada `.filter()` devolve uma nova,
+    o que permite montá-las por partes como aqui.
+    """
     if inicio:
         query = query.filter(Lancamento.data >= inicio)
     if fim:
@@ -45,6 +59,11 @@ def _aplica_periodo(query, inicio: date | None, fim: date | None):
 
 
 def categorias_do_usuario(usuario_id: int, apenas_ativas: bool = False) -> list[Categoria]:
+    """Categorias da conta, ordenadas por tipo e nome.
+
+    `apenas_ativas` é usado nos formulários: categoria desativada não deve ser
+    oferecida para novos lançamentos, mas continua aparecendo nos relatórios.
+    """
     query = Categoria.query.filter_by(usuario_id=usuario_id)
     if apenas_ativas:
         query = query.filter_by(ativa=True)

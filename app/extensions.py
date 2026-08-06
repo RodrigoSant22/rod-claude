@@ -24,6 +24,13 @@ login_manager.session_protection = "strong"
 
 @login_manager.user_loader
 def carregar_usuario(usuario_id: str):
+    """Recarrega o usuário a partir do id guardado no cookie de sessão.
+
+    O Flask-Login chama isto a cada requisição. O argumento chega como
+    **string** porque é o que vem do cookie, daí o `int()`.
+
+    O import é local para evitar ciclo: `models` importa `db` deste módulo.
+    """
     from app.models import Usuario
 
     return db.session.get(Usuario, int(usuario_id))

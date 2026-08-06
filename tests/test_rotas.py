@@ -1,3 +1,5 @@
+"""Rotas da aplicação: páginas, CRUD e comandos expostos."""
+
 from decimal import Decimal
 
 from app.models import Categoria, Lancamento, TipoLancamento

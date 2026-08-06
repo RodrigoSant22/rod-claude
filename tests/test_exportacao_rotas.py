@@ -5,12 +5,14 @@ import io
 
 
 def baixar(cliente, caminho: str):
+    """Baixa um arquivo e falha cedo se a rota não devolveu 200."""
     resposta = cliente.get(caminho)
     assert resposta.status_code == 200, caminho
     return resposta
 
 
 def linhas_csv(resposta) -> list[list[str]]:
+    """Linhas de dados do CSV baixado, sem o cabeçalho."""
     texto = resposta.get_data().decode("utf-8-sig")
     return list(csv.reader(io.StringIO(texto), delimiter=";"))[1:]
 

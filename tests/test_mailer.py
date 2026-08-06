@@ -13,6 +13,7 @@ class SMTPFalso:
     instancias: list["SMTPFalso"] = []
 
     def __init__(self, servidor, porta, timeout=None):
+        """Guarda os parâmetros da conexão em vez de abrir uma de verdade."""
         self.servidor = servidor
         self.porta = porta
         self.timeout = timeout
@@ -22,29 +23,36 @@ class SMTPFalso:
         SMTPFalso.instancias.append(self)
 
     def __enter__(self):
+        """Suporte ao `with`, como o smtplib.SMTP real."""
         return self
 
     def __exit__(self, *args):
+        """Não engole exceções."""
         return False
 
     def starttls(self):
+        """Registra que o TLS foi solicitado."""
         self.tls = True
 
     def login(self, usuario, senha):
+        """Registra as credenciais recebidas."""
         self.login_com = (usuario, senha)
 
     def send_message(self, mensagem):
+        """Guarda a mensagem para o teste inspecionar."""
         self.mensagens.append(mensagem)
 
 
 @pytest.fixture
 def smtp(monkeypatch):
+    """Troca smtplib.SMTP pelo dublê e devolve a classe, para inspeção."""
     SMTPFalso.instancias = []
     monkeypatch.setattr(smtplib, "SMTP", SMTPFalso)
     return SMTPFalso
 
 
 def configurar(app, **extras):
+    """Preenche a config de SMTP, permitindo sobrescrever chaves pontuais."""
     padrao = {
         "MAIL_SERVER": "smtp.exemplo.com",
         "MAIL_PORT": 587,
@@ -107,6 +115,7 @@ def test_falha_de_envio_nao_propaga(app, monkeypatch, caplog):
     configurar(app)
 
     def explode(*a, **kw):
+        """Simula o servidor recusando a conexão."""
         raise smtplib.SMTPException("servidor recusou")
 
     monkeypatch.setattr(smtplib, "SMTP", explode)
@@ -121,6 +130,7 @@ def test_servidor_inacessivel_nao_propaga(app, monkeypatch):
     configurar(app)
 
     def sem_rota(*a, **kw):
+        """Simula falha de rede antes do SMTP."""
         raise OSError("sem rota para o host")
 
     monkeypatch.setattr(smtplib, "SMTP", sem_rota)

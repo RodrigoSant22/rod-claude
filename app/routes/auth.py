@@ -1,3 +1,10 @@
+"""Autenticação: login, logout e os dois caminhos de troca de senha.
+
+Este blueprint não usa `before_request`: quase tudo aqui precisa ser acessível
+por quem ainda não entrou. As rotas que exigem sessão levam `@login_required`
+individualmente.
+"""
+
 from urllib.parse import urlparse
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
@@ -42,12 +49,18 @@ def _destino_seguro(destino: str | None) -> str:
 
 
 def _mensagem_bloqueio(minutos: int) -> str:
+    """Texto do bloqueio por excesso de tentativas, no singular ou plural."""
     unidade = "minuto" if minutos == 1 else "minutos"
     return f"Muitas tentativas. Tente novamente em {minutos} {unidade}."
 
 
 @bp.route("/login", methods=["GET", "POST"])
 def login():
+    """Exibe o formulário e processa a entrada.
+
+    A ordem importa: o freio de força bruta é consultado **antes** de conferir
+    a senha, senão o bloqueio não conteria nada.
+    """
     if current_user.is_authenticated:
         return redirect(url_for("main.index"))
 
@@ -76,6 +89,11 @@ def login():
 @bp.post("/logout")
 @login_required
 def logout():
+    """Encerra a sessão.
+
+    Só POST, e com token CSRF: um GET permitiria deslogar alguém com um
+    simples link ou imagem escondida numa página de terceiros.
+    """
     logout_user()
     flash("Sessão encerrada.", "sucesso")
     return redirect(url_for("auth.login"))
@@ -83,6 +101,10 @@ def logout():
 
 @bp.route("/senha/esqueci", methods=["GET", "POST"])
 def esqueci_senha():
+    """Recebe o e-mail e dispara o link de redefinição, se a conta existir.
+
+    A resposta é sempre a mesma, exista a conta ou não.
+    """
     if current_user.is_authenticated:
         return redirect(url_for("auth.alterar_senha"))
 
@@ -121,6 +143,10 @@ def esqueci_senha():
 
 @bp.route("/senha/redefinir/<token>", methods=["GET", "POST"])
 def redefinir_senha(token: str):
+    """Valida o link e troca a senha.
+
+    Não pede a senha atual: quem chega aqui provou ter acesso ao e-mail.
+    """
     usuario = tokens.validar(token)
     if usuario is None:
         flash("Link inválido ou expirado. Peça um novo.", "erro")
@@ -145,6 +171,7 @@ def redefinir_senha(token: str):
 @bp.route("/conta/senha", methods=["GET", "POST"])
 @login_required
 def alterar_senha():
+    """Troca de senha por quem já está autenticado, exigindo a senha atual."""
     form = AlterarSenhaForm()
 
     if form.validate_on_submit():

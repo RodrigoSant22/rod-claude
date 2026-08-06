@@ -1,3 +1,5 @@
+"""Filtros Jinja de formatação brasileira."""
+
 from datetime import date
 from decimal import Decimal
 

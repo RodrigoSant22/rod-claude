@@ -11,11 +11,13 @@ from app import exportacao
 
 
 def ler_csv(conteudo: bytes) -> list[list[str]]:
+    """Relê o CSV gerado, descartando o BOM, como o Excel faria."""
     texto = conteudo.decode("utf-8-sig")
     return list(csv.reader(io.StringIO(texto), delimiter=";"))
 
 
 def ler_xlsx(conteudo: bytes):
+    """Relê a planilha gerada, para inspecionar células e formatos."""
     return load_workbook(io.BytesIO(conteudo))
 
 

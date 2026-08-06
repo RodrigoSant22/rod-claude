@@ -21,6 +21,11 @@ _SAL = "redefinir-senha"
 
 
 def _serializador() -> URLSafeTimedSerializer:
+    """Assinador ligado ao SECRET_KEY atual.
+
+    Criado a cada chamada, e não uma vez no módulo, para respeitar a
+    configuração do app em uso — o que importa nos testes.
+    """
     return URLSafeTimedSerializer(current_app.config["SECRET_KEY"], salt=_SAL)
 
 
@@ -30,6 +35,7 @@ def _impressao(usuario: Usuario) -> str:
 
 
 def gerar(usuario: Usuario) -> str:
+    """Cria o token do link de redefinição para este usuário."""
     return _serializador().dumps({"id": usuario.id, "h": _impressao(usuario)})
 
 

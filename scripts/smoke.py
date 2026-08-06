@@ -49,12 +49,14 @@ falhas: list[str] = []
 
 
 def checa(rotulo: str, condicao: bool, detalhe: str = "") -> None:
+    """Imprime o resultado de uma verificação e guarda as que falharem."""
     print(f"{'  ok  ' if condicao else ' FALHA'} │ {rotulo} {detalhe}")
     if not condicao:
         falhas.append(rotulo)
 
 
 def secao(titulo: str) -> None:
+    """Imprime o cabeçalho de um grupo de verificações."""
     print(f"\n── {titulo} " + "─" * max(0, 58 - len(titulo)))
 
 
@@ -67,6 +69,7 @@ class Sessao:
     """Cliente com cookies próprios — cada instância é um "navegador"."""
 
     def __init__(self, base: str):
+        """Prepara um cliente com cookiejar próprio, apontando para `base`."""
         self.base = base.rstrip("/")
         # ProxyHandler vazio ignora HTTP_PROXY do ambiente: 127.0.0.1 é local.
         self.opener = urllib.request.build_opener(
@@ -75,6 +78,7 @@ class Sessao:
         )
 
     def get(self, caminho: str) -> tuple[int, str]:
+        """GET seguindo redirecionamentos. Devolve (status, corpo em texto)."""
         with self.opener.open(self.base + caminho) as r:
             # utf-8-sig descarta o BOM do CSV, que atrapalharia as buscas.
             return r.status, r.read().decode("utf-8-sig")
@@ -85,6 +89,7 @@ class Sessao:
             return r.read()
 
     def post(self, caminho: str, dados: dict, token: str | None = None) -> tuple[int, str]:
+        """POST em formulário. Passe `token` para incluir o csrf_token."""
         if token:
             dados = {**dados, "csrf_token": token}
         corpo = urllib.parse.urlencode(dados).encode()
@@ -102,7 +107,10 @@ class Sessao:
         """Segue nada: devolve o status e o Location, para checar desvios."""
 
         class SemRedirect(urllib.request.HTTPRedirectHandler):
+            """Handler que não segue redirecionamento, para inspecionar o 302."""
+
             def redirect_request(self, *a, **kw):
+                """Devolver None faz o urllib parar no redirecionamento."""
                 return None
 
         op = urllib.request.build_opener(
@@ -117,18 +125,21 @@ class Sessao:
             return e.code, e.headers.get("Location")
 
     def _jar(self):
+        """Devolve o cookiejar desta sessão, para reaproveitá-lo."""
         for h in self.opener.handlers:
             if isinstance(h, urllib.request.HTTPCookieProcessor):
                 return h.cookiejar
         raise RuntimeError("sessão sem cookiejar")
 
     def entrar(self, email: str, senha: str) -> str:
+        """Faz login e devolve o HTML da página de destino."""
         _, html = self.get("/login")
         _, html = self.post("/login", {"email": email, "senha": senha}, token_de(html))
         return html
 
 
 def token_de(html: str) -> str:
+    """Extrai o csrf_token do HTML. Levanta se não houver."""
     achado = re.search(r'name="csrf_token"[^>]*value="([^"]+)"', html)
     if not achado:
         raise RuntimeError("csrf_token não encontrado no HTML")
@@ -141,12 +152,17 @@ def token_de(html: str) -> str:
 
 
 def porta_livre() -> int:
+    """Uma porta livre no sistema.
+
+    Porta 0 faz o sistema escolher; lê-se qual foi e devolve o número.
+    """
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
 
 
 def flask(ambiente: dict, *args: str) -> None:
+    """Executa um comando `flask` no ambiente dado. Levanta se falhar."""
     resultado = subprocess.run(
         [sys.executable, "-m", "flask", *args],
         cwd=RAIZ,
@@ -161,6 +177,7 @@ def flask(ambiente: dict, *args: str) -> None:
 def esperar_servidor(
     base: str, processo: subprocess.Popen, log: Path, limite: float = 30.0
 ) -> None:
+    """Espera o servidor responder, ou levanta com o log se ele morrer."""
     inicio = time.monotonic()
     while time.monotonic() - inicio < limite:
         if processo.poll() is not None:
@@ -209,6 +226,7 @@ def preparar():
     )
 
     def encerrar():
+        """Derruba o servidor e apaga a pasta temporária."""
         processo.terminate()
         try:
             processo.wait(timeout=10)
@@ -236,6 +254,11 @@ def verificar(
     conta2: tuple[str, str] | None,
     log: Path | None = None,
 ) -> None:
+    """Roda todas as verificações contra o servidor em `base`.
+
+    `conta2` habilita a checagem de isolamento; `log` habilita a de
+    recuperação de senha, que precisa ler o link do log do servidor.
+    """
     email, senha = conta
 
     secao("acesso sem login")
@@ -399,6 +422,7 @@ def verificar(
 
 
 def main() -> int:
+    """Interpreta os argumentos, roda as verificações e devolve o código de saída."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--url", help="Servidor já rodando. Sem isto, um é preparado.")
     parser.add_argument("--email", help="Conta de teste (exige --url).")

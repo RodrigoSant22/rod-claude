@@ -1,3 +1,5 @@
+"""Painel e verificação de saúde."""
+
 from datetime import date
 
 from flask import Blueprint, render_template
@@ -13,6 +15,10 @@ bp = Blueprint("main", __name__)
 @bp.get("/")
 @login_required
 def index():
+    """Painel: saldo do mês, quebra por categoria e evolução do ano.
+
+    Todos os números vêm de `services`, sempre filtrados pelo usuário logado.
+    """
     hoje = date.today()
     inicio_mes = hoje.replace(day=1)
     eu = current_user.id

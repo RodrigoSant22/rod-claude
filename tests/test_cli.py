@@ -1,3 +1,5 @@
+"""Comandos de linha: criação de conta e adoção de registros sem dono."""
+
 from datetime import date
 from decimal import Decimal
 

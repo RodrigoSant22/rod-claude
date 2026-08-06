@@ -11,6 +11,7 @@ NOVA = "senha-nova-bem-longa"
 
 
 def pedir(client, email: str):
+    """Envia o formulário de "esqueci a senha"."""
     return client.post("/senha/esqueci", data={"email": email}, follow_redirects=True)
 
 

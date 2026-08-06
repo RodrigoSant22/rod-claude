@@ -1,3 +1,9 @@
+"""CRUD de lançamentos, com filtros e exportação.
+
+Todas as rotas exigem login (via `before_request`) e enxergam apenas os dados
+da conta autenticada.
+"""
+
 from datetime import date
 
 from flask import (
@@ -35,6 +41,11 @@ def exigir_login():
 
 
 def _data(nome: str) -> date | None:
+    """Lê uma data da query string. Valor ausente ou inválido vira None.
+
+    Engolir o erro é proposital: uma data digitada errada na URL deve apenas
+    ignorar o filtro, não devolver 400 ao visitante.
+    """
     valor = request.args.get(nome, "").strip()
     try:
         return date.fromisoformat(valor) if valor else None
@@ -43,16 +54,23 @@ def _data(nome: str) -> date | None:
 
 
 def _int(nome: str) -> int | None:
+    """Lê um inteiro da query string, ou None se não for um número."""
     valor = request.args.get(nome, "").strip()
     return int(valor) if valor.isdigit() else None
 
 
 def _tipo() -> TipoLancamento | None:
+    """Lê o tipo da query string, aceitando apenas os valores do enum."""
     valor = request.args.get("tipo", "").strip()
     return TipoLancamento(valor) if valor in TipoLancamento._value2member_map_ else None
 
 
 def _filtros() -> dict:
+    """Reúne os filtros da query string.
+
+    As chaves batem com os parâmetros de `services.buscar_lancamentos`, o que
+    permite repassar com `**filtros`.
+    """
     return {
         "inicio": _data("inicio"),
         "fim": _data("fim"),
@@ -91,11 +109,17 @@ def _links_exportacao(filtros: dict) -> dict[str, str]:
 
 
 def _minhas_categorias_ativas() -> list[Categoria]:
+    """Categorias ativas do usuário logado, para preencher os formulários."""
     return services.categorias_do_usuario(current_user.id, apenas_ativas=True)
 
 
 @bp.get("/")
 def listar():
+    """Lista os lançamentos filtrados, com o resumo do período.
+
+    Responde a página inteira, ou só o fragmento da tabela quando o pedido vem
+    do HTMX — o que é identificado pelo cabeçalho `HX-Request`.
+    """
     filtros = _filtros()
     contexto = {
         "lancamentos": services.buscar_lancamentos(current_user.id, **filtros),
@@ -114,6 +138,11 @@ def listar():
 
 @bp.route("/novo", methods=["GET", "POST"])
 def criar():
+    """Formulário de novo lançamento, e sua gravação.
+
+    Sem nenhuma categoria cadastrada não há o que escolher, então a rota
+    desvia para o cadastro de categorias em vez de mostrar um select vazio.
+    """
     form = LancamentoForm(data={"data": date.today()})
     categorias = _minhas_categorias_ativas()
     form.carregar_categorias(categorias)
@@ -142,6 +171,11 @@ def criar():
 
 @bp.route("/<int:lancamento_id>/editar", methods=["GET", "POST"])
 def editar(lancamento_id: int):
+    """Edição de um lançamento da própria conta.
+
+    `populate_obj` copia os campos do formulário para o objeto; como ele já
+    está na sessão do SQLAlchemy, basta commitar.
+    """
     lancamento = _meu_lancamento(lancamento_id)
     form = LancamentoForm(obj=lancamento)
     form.carregar_categorias(_minhas_categorias_ativas())
@@ -157,7 +191,11 @@ def editar(lancamento_id: int):
 
 @bp.get("/exportar.<formato>")
 def exportar(formato: str):
-    """Exporta o resultado dos mesmos filtros da listagem."""
+    """Baixa os lançamentos filtrados em CSV ou XLSX.
+
+    O `Content-Disposition: attachment` é o que faz o navegador salvar o
+    arquivo em vez de tentar exibi-lo.
+    """
     if formato not in _EXPORTADORES:
         abort(404)
 
@@ -179,6 +217,11 @@ def exportar(formato: str):
 
 @bp.post("/<int:lancamento_id>/excluir")
 def excluir(lancamento_id: int):
+    """Exclui um lançamento da própria conta.
+
+    Ao HTMX devolve a tabela já atualizada; ao navegador comum, redireciona
+    com mensagem.
+    """
     lancamento = _meu_lancamento(lancamento_id)
     db.session.delete(lancamento)
     db.session.commit()

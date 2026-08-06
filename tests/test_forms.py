@@ -1,3 +1,5 @@
+"""Validação dos formulários, com foco no campo de valor."""
+
 from decimal import Decimal
 
 import pytest
@@ -6,6 +8,7 @@ from app.forms import LancamentoForm
 
 
 def _monta_form(app, categorias, **campos):
+    """Monta e valida um LancamentoForm fora de uma requisição real."""
     dados = {
         "descricao": "Teste",
         "data": "2026-03-01",

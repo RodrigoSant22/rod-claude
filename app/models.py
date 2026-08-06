@@ -1,3 +1,10 @@
+"""Modelos do banco de dados.
+
+Cada classe vira uma tabela via Flask-SQLAlchemy. As propriedades derivadas
+(`tipo`, `valor_com_sinal`) existem para que dados calculáveis não sejam
+armazenados — assim não há como divergirem da origem.
+"""
+
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -10,6 +17,11 @@ from app.extensions import db
 
 
 def utcnow() -> datetime:
+    """Agora, em UTC e com fuso explícito.
+
+    Não use `datetime.utcnow()`: ele devolve um datetime *sem* fuso, que
+    compara errado com datetimes cientes e está depreciado no Python 3.12.
+    """
     return datetime.now(UTC)
 
 
@@ -23,6 +35,15 @@ class TimestampMixin:
 
 
 class Usuario(TimestampMixin, UserMixin, db.Model):
+    """Conta de acesso.
+
+    `UserMixin` vem do Flask-Login e fornece `is_authenticated`, `is_anonymous`
+    e `get_id`. A ordem da herança importa: mixins antes de `db.Model` para
+    poderem sobrescrever o comportamento da base.
+
+    Não há cadastro pela web — contas nascem de `flask criar-usuario`.
+    """
+
     __tablename__ = "usuarios"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -35,6 +56,7 @@ class Usuario(TimestampMixin, UserMixin, db.Model):
     lancamentos = db.relationship("Lancamento", back_populates="usuario")
 
     def __repr__(self) -> str:
+        """Representação legível para o depurador e o log."""
         return f"<Usuario {self.email}>"
 
     def definir_senha(self, senha: str) -> None:
@@ -51,6 +73,11 @@ class Usuario(TimestampMixin, UserMixin, db.Model):
         )
 
     def conferir_senha(self, senha: str) -> bool:
+        """Compara a senha oferecida com o hash guardado.
+
+        A comparação é feita em tempo constante pelo Werkzeug, o que impede
+        deduzir o hash medindo o tempo de resposta.
+        """
         return check_password_hash(self.senha_hash, senha)
 
     @property
@@ -60,6 +87,11 @@ class Usuario(TimestampMixin, UserMixin, db.Model):
 
     @staticmethod
     def normalizar_email(email: str) -> str:
+        """Minúsculas e sem espaços nas pontas.
+
+        Aplicado ao gravar e ao consultar, para que "Rodrigo@Ex.com " e
+        "rodrigo@ex.com" sejam sempre a mesma conta.
+        """
         return email.strip().lower()
 
 
@@ -80,19 +112,33 @@ class TentativaAcesso(db.Model):
     criado_em = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False, index=True)
 
     def __repr__(self) -> str:
+        """Representação legível para o depurador e o log."""
         return f"<TentativaAcesso {self.acao} {self.identificador} sucesso={self.sucesso}>"
 
 
 class TipoLancamento(StrEnum):
+    """Receita ou despesa.
+
+    StrEnum permite comparar e serializar como texto sem `.value`, mantendo a
+    verificação que uma string solta não teria.
+    """
+
     RECEITA = "receita"
     DESPESA = "despesa"
 
     @property
     def rotulo(self) -> str:
+        """Texto para exibição, com inicial maiúscula."""
         return "Receita" if self is TipoLancamento.RECEITA else "Despesa"
 
 
 class Categoria(TimestampMixin, db.Model):
+    """Rubrica de um lançamento, sempre pertencente a um usuário.
+
+    O tipo (receita ou despesa) mora aqui, e não no lançamento: assim um
+    lançamento não tem como contradizer a própria categoria.
+    """
+
     __tablename__ = "categorias"
     # O nome só precisa ser único dentro da conta de cada usuário.
     __table_args__ = (
@@ -115,16 +161,24 @@ class Categoria(TimestampMixin, db.Model):
     lancamentos = db.relationship("Lancamento", back_populates="categoria")
 
     def __repr__(self) -> str:
+        """Representação legível para o depurador e o log."""
         return f"<Categoria {self.nome} ({self.tipo})>"
 
     @property
     def em_uso(self) -> bool:
+        """Se já existe algum lançamento nesta categoria.
+
+        Consulta o banco, então evite dentro de laço — chame só onde a
+        resposta é usada uma vez, como na tela de exclusão.
+        """
         return db.session.query(
             Lancamento.query.filter_by(categoria_id=self.id).exists()
         ).scalar()
 
 
 class Lancamento(TimestampMixin, db.Model):
+    """Uma entrada ou saída de dinheiro, em uma data e uma categoria."""
+
     __tablename__ = "lancamentos"
     __table_args__ = (db.CheckConstraint("valor > 0", name="ck_lancamento_valor_positivo"),)
 
@@ -146,6 +200,7 @@ class Lancamento(TimestampMixin, db.Model):
     usuario = db.relationship("Usuario", back_populates="lancamentos")
 
     def __repr__(self) -> str:
+        """Representação legível para o depurador e o log."""
         return f"<Lancamento {self.descricao} {self.valor}>"
 
     @property

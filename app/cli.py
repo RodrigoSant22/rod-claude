@@ -50,6 +50,12 @@ def _adotar_orfaos(usuario: Usuario) -> int:
 
 
 def registrar(app: Flask) -> None:
+    """Registra os comandos no `flask`. Chamado por `create_app`.
+
+    Comandos declarados assim rodam dentro de um application context, por
+    isso `db.session` funciona sem `with app.app_context()`.
+    """
+
     @app.cli.command("init-db")
     def init_db():
         """Cria as tabelas (atalho para quem não vai usar migrações)."""

@@ -26,6 +26,18 @@ Acesse http://127.0.0.1:5000 e entre com o e-mail e a senha que você definiu.
 > `flask criar-usuario`. Seus lançamentos e categorias existentes são
 > atribuídos automaticamente à primeira conta criada — nada se perde.
 
+## Entendendo o código
+
+Dois guias percorrem o projeto explicando as construções usadas, com apontador
+para o arquivo onde cada uma aparece:
+
+- [Flask neste projeto](docs/flask-neste-projeto.md) — factory, contextos e
+  proxies, blueprints, Jinja, formulários e CSRF, login, sessão do SQLAlchemy,
+  migrações e testes
+- [Python neste projeto](docs/python-neste-projeto.md) — `Decimal` e o porquê de
+  nunca usar `float` para dinheiro, `StrEnum`, dataclasses, properties, mixins,
+  geradores e as armadilhas de verdade/falsidade
+
 ## Estrutura
 
 ```

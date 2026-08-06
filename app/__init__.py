@@ -1,3 +1,9 @@
+"""Ponto de montagem da aplicação.
+
+O app não é criado na importação deste módulo, e sim dentro de `create_app`.
+Veja docs/flask-neste-projeto.md, seção "Application factory", para o porquê.
+"""
+
 from pathlib import Path
 
 from dotenv import load_dotenv
