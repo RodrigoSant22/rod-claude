@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}Fluxo de Caixa{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+    {# HTMX 2.0.10, servido localmente: sem rede externa e sem depender de CDN.
+       É opcional — sem ele a aplicação continua funcionando por forms normais. #}
+    <script src="{{ url_for('static', filename='js/htmx.min.js') }}" defer></script>
+  </head>
+  <body>
+    <header>
+      <a class="marca" href="{{ url_for('main.index') }}">Fluxo de Caixa</a>
+
+      {% if current_user.is_authenticated %}
+        <nav>
+          <a href="{{ url_for('main.index') }}">Painel</a>
+          <a href="{{ url_for('lancamentos.listar') }}">Lançamentos</a>
+          <a href="{{ url_for('categorias.listar') }}">Categorias</a>
+          <a class="botao" href="{{ url_for('lancamentos.criar') }}">+ Novo</a>
+
+          <span class="conta">
+            <a href="{{ url_for('auth.alterar_senha') }}">{{ current_user.nome }}</a>
+            <form method="post" action="{{ url_for('auth.logout') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <button type="submit" class="ligacao">sair</button>
+            </form>
+          </span>
+        </nav>
+      {% endif %}
+    </header>
+
+    <main>
+      {% with mensagens = get_flashed_messages(with_categories=true) %}
+        {% if mensagens %}
+          <div class="avisos">
+            {% for categoria, texto in mensagens %}
+              <p class="aviso aviso--{{ categoria }}">{{ texto }}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+      <a href="{{ url_for('main.health') }}">status</a>
+    </footer>
+  </body>
+</html>

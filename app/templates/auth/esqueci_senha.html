@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% from "_macros.html" import campo %}
+{% block title %}Esqueci a senha{% endblock %}
+
+{% block content %}
+  <div class="centralizado">
+    <h1>Esqueci a senha</h1>
+    <p class="sutil">Informe o e-mail da conta e enviaremos um link para escolher uma nova senha.</p>
+
+    <form method="post" class="formulario">
+      {{ form.hidden_tag() }}
+      {{ campo(form.email) }}
+
+      <div class="acoes-form">
+        <button type="submit">Enviar link</button>
+        <a class="botao botao--secundario" href="{{ url_for('auth.login') }}">Voltar</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

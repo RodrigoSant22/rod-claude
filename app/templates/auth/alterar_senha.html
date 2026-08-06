@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% from "_macros.html" import campo %}
+{% block title %}Alterar senha{% endblock %}
+
+{% block content %}
+  <h1>Alterar senha</h1>
+  <p class="sutil">Conta: {{ current_user.email }}</p>
+
+  <form method="post" class="formulario">
+    {{ form.hidden_tag() }}
+    {{ campo(form.senha_atual) }}
+    {{ campo(form.nova_senha, ajuda="Ao menos 8 caracteres.") }}
+    {{ campo(form.confirmacao) }}
+
+    <div class="acoes-form">
+      <button type="submit">Salvar</button>
+      <a class="botao botao--secundario" href="{{ url_for('main.index') }}">Cancelar</a>
+    </div>
+  </form>
+{% endblock %}

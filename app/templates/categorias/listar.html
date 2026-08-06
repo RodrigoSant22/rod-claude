@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Categorias{% endblock %}
+
+{% block content %}
+  <h1>Categorias</h1>
+  <p><a class="botao" href="{{ url_for('categorias.criar') }}">+ Nova categoria</a></p>
+
+  {% if categorias %}
+    <table>
+      <thead>
+        <tr><th>Nome</th><th>Tipo</th><th>Situação</th><th class="acoes">Ações</th></tr>
+      </thead>
+      <tbody>
+        {% for c in categorias %}
+          <tr class="{{ '' if c.ativa else 'inativa' }}">
+            <td>{{ c.nome }}</td>
+            <td><span class="etiqueta etiqueta--{{ c.tipo.value }}">{{ c.tipo.rotulo }}</span></td>
+            <td>{{ "Ativa" if c.ativa else "Inativa" }}</td>
+            <td class="acoes">
+              <a href="{{ url_for('categorias.editar', categoria_id=c.id) }}">editar</a>
+              <form method="post"
+                    action="{{ url_for('categorias.excluir', categoria_id=c.id) }}"
+                    onsubmit="return confirm('Excluir ou desativar {{ c.nome }}?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <button type="submit" class="ligacao perigo">excluir</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="sutil">
+      Categorias com lançamentos não são excluídas — só desativadas, para preservar o histórico.
+    </p>
+  {% else %}
+    <p class="sutil">
+      Nenhuma categoria. Crie uma, ou rode <code>flask --app run.py seed</code> para
+      cadastrar um conjunto padrão.
+    </p>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,73 @@
+{# Fragmento reaproveitado pelo HTMX: a página inteira o inclui, e as
+   requisições com HX-Request recebem só este pedaço. #}
+<div id="tabela">
+  <section class="cartoes cartoes--compacto">
+    <div class="cartao">
+      <span class="rotulo">Receitas</span>
+      <strong class="valor positivo">{{ resumo.receitas|moeda }}</strong>
+    </div>
+    <div class="cartao">
+      <span class="rotulo">Despesas</span>
+      <strong class="valor negativo">{{ resumo.despesas|moeda }}</strong>
+    </div>
+    <div class="cartao">
+      <span class="rotulo">Saldo</span>
+      <strong class="valor {{ 'positivo' if resumo.saldo >= 0 else 'negativo' }}">
+        {{ resumo.saldo|moeda }}
+      </strong>
+    </div>
+  </section>
+
+  {% if lancamentos %}
+    <p class="exportar">
+      Exportar {{ lancamentos|length }} lançamento{{ 's' if lancamentos|length != 1 }}:
+      <a href="{{ url_xlsx }}" download>Excel</a> ·
+      <a href="{{ url_csv }}" download>CSV</a>
+      <small class="sutil">respeita os filtros acima</small>
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Descrição</th>
+          <th>Categoria</th>
+          <th class="num">Valor</th>
+          <th class="acoes">Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for l in lancamentos %}
+          <tr>
+            <td>{{ l.data|data_br }}</td>
+            <td>
+              {{ l.descricao }}
+              {% if l.observacao %}<br /><small class="sutil">{{ l.observacao }}</small>{% endif %}
+            </td>
+            <td>
+              <span class="etiqueta etiqueta--{{ l.tipo.value }}">{{ l.categoria.nome }}</span>
+            </td>
+            <td class="num {{ 'positivo' if l.tipo.value == 'receita' else 'negativo' }}">
+              {{ l.valor_com_sinal|moeda }}
+            </td>
+            <td class="acoes">
+              <a href="{{ url_for('lancamentos.editar', lancamento_id=l.id) }}">editar</a>
+              <form method="post"
+                    action="{{ url_for('lancamentos.excluir', lancamento_id=l.id) }}"
+                    hx-post="{{ url_for('lancamentos.excluir', lancamento_id=l.id) }}"
+                    hx-target="#tabela"
+                    hx-swap="outerHTML"
+                    hx-confirm="Excluir '{{ l.descricao }}'?"
+                    onsubmit="return this.hasAttribute('hx-post') ? true : confirm('Excluir?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <button type="submit" class="ligacao perigo">excluir</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="sutil">Nenhum lançamento encontrado com esses filtros.</p>
+  {% endif %}
+</div>

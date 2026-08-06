@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "_macros.html" import campo %}
+{% block title %}{{ "Editar" if lancamento else "Novo" }} lançamento{% endblock %}
+
+{% block content %}
+  <h1>{{ "Editar lançamento" if lancamento else "Novo lançamento" }}</h1>
+
+  <form method="post" class="formulario">
+    {{ form.hidden_tag() }}
+    {{ campo(form.descricao) }}
+    {{ campo(form.valor, ajuda="Sempre positivo. Receita ou despesa vem da categoria.") }}
+    {{ campo(form.data) }}
+    {{ campo(form.categoria_id) }}
+    {{ campo(form.observacao) }}
+
+    <div class="acoes-form">
+      <button type="submit">Salvar</button>
+      <a class="botao botao--secundario" href="{{ url_for('lancamentos.listar') }}">Cancelar</a>
+    </div>
+  </form>
+{% endblock %}

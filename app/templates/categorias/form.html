@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% from "_macros.html" import campo %}
+{% block title %}{{ "Editar" if categoria else "Nova" }} categoria{% endblock %}
+
+{% block content %}
+  <h1>{{ "Editar categoria" if categoria else "Nova categoria" }}</h1>
+
+  <form method="post" class="formulario">
+    {{ form.hidden_tag() }}
+    {{ campo(form.nome) }}
+    {{ campo(form.tipo, ajuda="Define se os lançamentos desta categoria somam ou subtraem.") }}
+
+    <div class="campo campo--check">
+      {{ form.ativa }} {{ form.ativa.label }}
+      <small class="ajuda">Categorias inativas não aparecem ao criar lançamentos.</small>
+    </div>
+
+    <div class="acoes-form">
+      <button type="submit">Salvar</button>
+      <a class="botao botao--secundario" href="{{ url_for('categorias.listar') }}">Cancelar</a>
+    </div>
+  </form>
+{% endblock %}

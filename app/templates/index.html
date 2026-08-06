@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Painel{% endblock %}
+
+{% block content %}
+  <h1>Painel</h1>
+  <p class="sutil">Mês corrente: {{ inicio_mes|data_br }} a {{ hoje|data_br }}</p>
+
+  <section class="cartoes">
+    <div class="cartao">
+      <span class="rotulo">Receitas do mês</span>
+      <strong class="valor positivo">{{ resumo_mes.receitas|moeda }}</strong>
+    </div>
+    <div class="cartao">
+      <span class="rotulo">Despesas do mês</span>
+      <strong class="valor negativo">{{ resumo_mes.despesas|moeda }}</strong>
+    </div>
+    <div class="cartao">
+      <span class="rotulo">Saldo do mês</span>
+      <strong class="valor {{ 'positivo' if resumo_mes.saldo >= 0 else 'negativo' }}">
+        {{ resumo_mes.saldo|moeda }}
+      </strong>
+    </div>
+    <div class="cartao">
+      <span class="rotulo">Saldo acumulado</span>
+      <strong class="valor {{ 'positivo' if resumo_total.saldo >= 0 else 'negativo' }}">
+        {{ resumo_total.saldo|moeda }}
+      </strong>
+    </div>
+  </section>
+
+  <div class="colunas">
+    <section>
+      <h2>Despesas por categoria</h2>
+      {% if despesas_por_categoria %}
+        <ul class="barras">
+          {% for item in despesas_por_categoria %}
+            <li>
+              <div class="barra-topo">
+                <span>{{ item.categoria }}</span>
+                <span>{{ item.total|moeda }} <small class="sutil">{{ item.percentual }}%</small></span>
+              </div>
+              <div class="barra"><span style="width: {{ item.percentual }}%"></span></div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="sutil">Nenhuma despesa no mês.</p>
+      {% endif %}
+    </section>
+
+    <section>
+      <h2>Receitas por categoria</h2>
+      {% if receitas_por_categoria %}
+        <ul class="barras barras--receita">
+          {% for item in receitas_por_categoria %}
+            <li>
+              <div class="barra-topo">
+                <span>{{ item.categoria }}</span>
+                <span>{{ item.total|moeda }} <small class="sutil">{{ item.percentual }}%</small></span>
+              </div>
+              <div class="barra"><span style="width: {{ item.percentual }}%"></span></div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="sutil">Nenhuma receita no mês.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <section>
+    <h2>Evolução em {{ hoje.year }}</h2>
+    <table>
+      <thead>
+        <tr><th>Mês</th><th class="num">Receitas</th><th class="num">Despesas</th><th class="num">Saldo</th></tr>
+      </thead>
+      <tbody>
+        {% for linha in evolucao %}
+          {% if linha.receitas or linha.despesas %}
+            <tr>
+              <td>{{ linha.mes|mes_abrev }}</td>
+              <td class="num positivo">{{ linha.receitas|moeda }}</td>
+              <td class="num negativo">{{ linha.despesas|moeda }}</td>
+              <td class="num {{ 'positivo' if linha.saldo >= 0 else 'negativo' }}">{{ linha.saldo|moeda }}</td>
+            </tr>
+          {% endif %}
+        {% else %}
+          <tr><td colspan="4" class="sutil">Sem lançamentos neste ano.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Últimos lançamentos</h2>
+    {% if ultimos %}
+      <table>
+        <thead>
+          <tr><th>Data</th><th>Descrição</th><th>Categoria</th><th class="num">Valor</th></tr>
+        </thead>
+        <tbody>
+          {% for l in ultimos %}
+            <tr>
+              <td>{{ l.data|data_br }}</td>
+              <td>{{ l.descricao }}</td>
+              <td>{{ l.categoria.nome }}</td>
+              <td class="num {{ 'positivo' if l.tipo.value == 'receita' else 'negativo' }}">
+                {{ l.valor_com_sinal|moeda }}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p><a href="{{ url_for('lancamentos.listar') }}">Ver todos →</a></p>
+    {% else %}
+      <p class="sutil">
+        Nenhum lançamento ainda.
+        <a href="{{ url_for('lancamentos.criar') }}">Registrar o primeiro</a>.
+      </p>
+    {% endif %}
+  </section>
+{% endblock %}
